@@ -179,7 +179,7 @@ class GeoPlanetUpdater {
 		while (($data = $tsv->get()) !== false) {
 			$row++;
 
-			$this->delay($data['WOE_ID'], $row, $total);
+			$this->delay();
 
 			$yql = $q .
 				urlencode(sprintf($select, $data[self::PLACES_WOEID])) .
@@ -214,12 +214,11 @@ class GeoPlanetUpdater {
 
 	}
 
-	private function delay($woeid, $row, $total) {
+	private function delay() {
 		$ended = microtime(true);
 		$elapsed = ($ended - $this->started) * $this->seconds;
 
 		if ($elapsed < $this->rate) {
-			$this->show_status('--paused--', $row, $total);
 			usleep($this->rate - $elapsed);
 		}
 
