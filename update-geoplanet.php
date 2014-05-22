@@ -1,11 +1,11 @@
-#!/usr/local/bin/php -q
+#!/usr/bin/env php -q
 <?php
 
 require 'vendor/autoload.php';
 require 'geoplanet-data-reader.php';
 require 'oauth.php';
 
-use GuzzleHttp\Clientl;
+use GuzzleHttp\Client;
 use GuzzleHttp\Subscriber\Oauth\Oauth1;
 
 $shortopts = "vg:s:";
