@@ -1,0 +1,12 @@
+{
+	"require": {
+		"elasticsearch/elasticsearch": "~1.1.0",
+		"guzzlehttp/oauth-subscriber": "0.1.x"
+	},
+	"autoload": {
+        "psr-4": {
+			"elasticsearch\\": "src/",
+			"guzzlehttp\\": "src/"
+		}
+    }
+}

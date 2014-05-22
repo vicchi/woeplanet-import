@@ -1,0 +1,5 @@
+/vendor
+
+/oauth.php
+
+*.sqlite3
