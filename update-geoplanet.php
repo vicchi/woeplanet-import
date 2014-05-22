@@ -179,6 +179,8 @@ class GeoPlanetUpdater {
 		while (($data = $tsv->get()) !== false) {
 			$row++;
 
+			$this->delay();
+
 			$yql = $q .
 				urlencode(sprintf($select, $data[self::PLACES_WOEID])) .
 				$format;
