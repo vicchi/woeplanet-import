@@ -1,4 +1,4 @@
-#!/usr/bin/env php -q
+#!/usr/bin/env php
 <?php
 
 require 'vendor/autoload.php';
@@ -145,7 +145,7 @@ class GeoPlanetUpdater {
 
 		$this->log("Caching $total WOEIDs from YQL");
 
-		$setup = "CREATE TABLE geoplanet_update(
+		$setup = "CREATE TABLE IF NOT EXISTS geoplanet_update(
 			woeid INTEGER PRIMARY KEY,
 			parent INTEGER,
 			timezone INTEGER,
@@ -176,30 +176,43 @@ class GeoPlanetUpdater {
 			urlencode($select) .
 			$format;
 
+		$check = "SELECT * FROM geoplanet_update WHERE woeid = :woeid";
+		$sql = $db->prepare($check);
+
 		while (($data = $tsv->get()) !== false) {
 			$row++;
 
-			$this->delay();
+			$rpc = true;
+			$sql->bindParam(':woeid', $data['WOE_ID']);
+			$sql->execute();
+			$ret = $sql->fetch(PDO::FETCH_ASSOC);
+			if ($ret) {
+				$rpc = false;
+			}
 
-			$yql = $q .
-				urlencode(sprintf($select, $data[self::PLACES_WOEID])) .
-				$format;
-			$res = $client->get($yql);
+			if ($rpc) {
+				$this->delay();
 
-			if ($res->getStatusCode() == '200') {
-				$statement->bindParam(':woeid', $data['WOE_ID']);
-				$json = $res->json();
+				$yql = $q .
+					urlencode(sprintf($select, $data[self::PLACES_WOEID])) .
+					$format;
+				$res = $client->get($yql);
 
-				$statement->bindParam(':parent', $json['query']['results']['place']['woeid']);
-				$timezone = 0;
-				$tz = '';
-				if (isset($json['query']['results']['place']['timezone'])) {
-					$timezone = $json['query']['results']['place']['timezone']['woeid'];
-					$tz = $json['query']['results']['place']['timezone']['content'];
+				if ($res->getStatusCode() == '200') {
+					$statement->bindParam(':woeid', $data['WOE_ID']);
+					$json = $res->json();
+
+					$statement->bindParam(':parent', $json['query']['results']['place']['woeid']);
+					$timezone = 0;
+					$tz = '';
+					if (isset($json['query']['results']['place']['timezone'])) {
+						$timezone = $json['query']['results']['place']['timezone']['woeid'];
+						$tz = $json['query']['results']['place']['timezone']['content'];
+					}
+					$statement->bindParam(':timezone', $timezone);
+					$statement->bindParam(':tz', $tz);
+					$statement->execute();
 				}
-				$statement->bindParam(':timezone', $timezone);
-				$statement->bindParam(':tz', $tz);
-				$statement->execute();
 			}
 
 			$this->show_status($data['WOE_ID'], $row, $total);
