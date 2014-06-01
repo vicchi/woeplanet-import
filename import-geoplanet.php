@@ -1,4 +1,4 @@
-#!/usr/bin/env php -q
+#!/usr/bin/env php
 <?php
 
 require 'vendor/autoload.php';
@@ -188,6 +188,10 @@ class GeoPlanetImporter {
 		}
 	}
 
+	/***************************************************************************
+	 * run
+	 */
+
 	public function run() {
 		$this->elapsed('run');
 
@@ -243,6 +247,10 @@ class GeoPlanetImporter {
 		$this->log("Completed in $elapsed");
 	}
 
+	/***************************************************************************
+	 * setup
+	 */
+
 	private function setup() {
 		$this->log("Creating Elasticsearch index and type mappings");
 		$this->elapsed('setup');
@@ -263,6 +271,9 @@ class GeoPlanetImporter {
 			'body' => array(
 				'mappings' => array(
 					self::PLACES_TYPE => array(
+						'_timestamp' => array(
+							'enabled' => true
+						),
 						'properties' => array(
 							'centroid' => array(
 								'type' => 'geo_point'
@@ -290,6 +301,9 @@ class GeoPlanetImporter {
 						)
 					),
 					self::ADMINS_TYPE => array(
+						'_timestamp' => array(
+							'enabled' => true
+						),
 						'properties' => array(
 							'woeid' => array(
 								'type' => 'long'
@@ -310,6 +324,11 @@ class GeoPlanetImporter {
 								'type' => 'long'
 							)
 						)
+					),
+					self::PLACETYPES_TYPE => array(
+						'_timestamp' => array(
+							'enabled' => true
+						)
 					)
 				)
 			)
@@ -320,6 +339,10 @@ class GeoPlanetImporter {
 		$elapsed = $this->seconds_to_time($this->elapsed('setup'));
 		$this->log("Completed Elasticsearch index and type mappings in $elapsed");
 	}
+
+	/***************************************************************************
+	 * index_places
+	 */
 
 	private function index_places() {
 		$this->elapsed('places');
@@ -442,6 +465,10 @@ class GeoPlanetImporter {
 		$this->log("Completed indexing places in $elapsed");
 	}
 
+	/***************************************************************************
+ 	* index_coords
+ 	*/
+
 	private function index_coords() {
 		$this->elapsed('coords');
 
@@ -510,6 +537,10 @@ class GeoPlanetImporter {
 		$elapsed = $this->seconds_to_time($this->elapsed('coords'));
 		$this->log("Completed indexing coordinates in $elapsed");
 	}
+
+	/***************************************************************************
+ 	* index_changes
+	 */
 
 	private function index_changes() {
 		$this->elapsed('changes');
@@ -592,6 +623,10 @@ class GeoPlanetImporter {
 		$elapsed = $this->seconds_to_time($this->elapsed('changes'));
 		$this->log("Completed indexing changes in $elapsed");
 	}
+
+	/***************************************************************************
+	 * index_adjacencies
+	 */
 
 	private function index_adjacencies() {
 		$this->elapsed('adjacencies');
@@ -693,6 +728,10 @@ class GeoPlanetImporter {
 		$elapsed = $this->seconds_to_time($this->elapsed('adjacencies'));
 		$this->log("Completed indexing adjacencies in $elapsed");
 	}
+
+	/***************************************************************************
+ 	* index_aliases
+	 */
 
 	private function index_aliases() {
 		$this->elapsed('aliases');
@@ -818,6 +857,10 @@ class GeoPlanetImporter {
 		$this->log("Completed indexing aliases in $elapsed");
 	}
 
+	/***************************************************************************
+ 	* index_admins
+ 	*/
+
 	private function index_admins() {
 		$this->log("Indexing admins");
 		$this->elapsed('admins');
@@ -873,6 +916,10 @@ class GeoPlanetImporter {
 		$elapsed = $this->seconds_to_time($this->elapsed('admins'));
 		$this->log("Completed indexing admins in $elapsed");
 	}
+
+	/***************************************************************************
+	 * index_placetypes
+	 */
 
 	private function index_placetypes() {
 		$this->log("Indexing placetypes");
@@ -1105,6 +1152,10 @@ class GeoPlanetImporter {
 		$this->log("Completed indexing placetypes in $elapsed");
 	}
 
+	/***************************************************************************
+	 * get_by_woeid
+	 */
+
 	private function get_by_woeid($woeid) {
 		$query = array(
 			'index' => self::INDEX,
@@ -1119,6 +1170,10 @@ class GeoPlanetImporter {
 		}
 		return $ret;
 	}
+
+	/***************************************************************************
+ 	* elapsed
+ 	*/
 
 	private function elapsed($stage) {
 		static $last = array(
@@ -1143,6 +1198,10 @@ class GeoPlanetImporter {
 		$last[$stage] = $now;
 		return $elapsed;
 	}
+
+	/***************************************************************************
+	 * seconds_to_time
+	 */
 
 	private function seconds_to_time($seconds) {
 		$dtf = new DateTime("@0");
