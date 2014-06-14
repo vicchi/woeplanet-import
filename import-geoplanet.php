@@ -3,6 +3,7 @@
 
 require 'vendor/autoload.php';
 require 'geoplanet-data-reader.php';
+require 'woeplanet-placetypes.php';
 
 $shortopts = "vpe:g:s:";
 $longopts = array(
@@ -71,6 +72,7 @@ class GeoPlanetImporter {
 	const ALIASES_STAGE = 'aliases';
 	const ADMINS_STAGE = 'admins';
 	const PLACETYPES_STAGE = 'placetypes';
+	const TEST_STAGE = 'test';
 
 	const PLACES_WOEID = 'WOE_ID';
 	const PLACES_ISO = 'ISO';
@@ -96,6 +98,7 @@ class GeoPlanetImporter {
 	const ALIAS_WOEID = 'WOE_ID';
 	const ALIAS_NAME = 'Name';
 	const ALIAS_TYPE = 'Name_Type';
+	const ALIAS_LANG = 'Language';
 
 	const ADMINS_WOEID = 'WOE_ID';
 	const ADMINS_ISO = 'ISO';
@@ -110,8 +113,10 @@ class GeoPlanetImporter {
 	private $path = NULL;
 	private $instance = 'http://localhost:9200';
 	private $stage = NULL;
+	private $source;
 	private $version;
-	private $provider;
+	private $timestamp;
+	private $history;
 
 	private $es;
 	private $sqlite;
@@ -126,7 +131,11 @@ class GeoPlanetImporter {
 
 	private $files;
 
+	private $placetypes;
+
 	public function __construct($instance, $path, $verbose, $purge, $stage=NULL) {
+		$this->placetypes = new WoePlanetPlaceTypes();
+
 		$this->instance = $instance;
 		$this->path = $path;
 		$this->verbose = $verbose;
@@ -148,7 +157,8 @@ class GeoPlanetImporter {
 			self::ADJACENCIES_STAGE,
 			self::ALIASES_STAGE,
 			self::ADMINS_STAGE,
-			self::PLACETYPES_STAGE
+			self::PLACETYPES_STAGE,
+			self::TEST_STAGE
 		);
 
 		foreach ($this->stages as $stage) {
@@ -160,10 +170,24 @@ class GeoPlanetImporter {
 		}
 
 		$match = array();
-		$pattern = '/geoplanet_data_([\d\.]+)$/';
+		$pattern = '/(.+)_([\d\.]+)$/';
 		$ret = preg_match($pattern, basename($this->path), $match);
-		$this->version = $match[1];
-		$this->provider = sprintf('geoplanet %s', $this->version);
+		if ($ret === 1) {
+			$this->source = $match[1];
+			$this->version = $match[2];
+			$this->timestamp = time();
+			$this->history = array(
+				array(
+					'source' => sprintf('%s %s', $this->source, $this->version),
+					'timestamp' => (int) $this->timestamp
+				)
+			);
+		}
+
+		else {
+			$this->log('Can\t get source and version from path ' . $this->path);
+			exit;
+		}
 
 		$this->places = sprintf('geoplanet_places_%s.tsv', $this->version);
 		$this->aliases = sprintf('geoplanet_aliases_%s.tsv', $this->version);
@@ -183,7 +207,7 @@ class GeoPlanetImporter {
 		}
 
 		if (false === array_key_exists($this->places, $this->files)) {
-			$this->log("Missing $places");
+			$this->log("Missing $this->places");
 			exit;
 		}
 	}
@@ -243,6 +267,10 @@ class GeoPlanetImporter {
 				exit;
 		}
 
+		if ($this->stage != 'run' && $this->stage == 'test') {
+			$this->run_test();
+		}
+
 		$elapsed = $this->seconds_to_time($this->elapsed('run'));
 		$this->log("Completed in $elapsed");
 	}
@@ -267,60 +295,160 @@ class GeoPlanetImporter {
 		}
 
 		$params = array(
-			'index' => self::INDEX,
-			'body' => array(
+			'index' => self::INDEX
+		);
+
+		$this->logVerbose("Checking index " . self::INDEX);
+		if ($this->es->indices()->exists($params)) {
+			$this->logVerbose("Index ". self::INDEX . " exists, skipping index and mapping creation");
+		}
+
+		else {
+			$body = array(
 				'mappings' => array(
 					self::PLACES_TYPE => array(
 						'_timestamp' => array(
 							'enabled' => true
 						),
 						'properties' => array(
-							'centroid' => array(
-								'type' => 'geo_point'
+							'type' => array(
+								'type' => 'string'
 							),
-							'bbox' => array(
-								'type' => 'object',
+							'features' => array(
 								'properties' => array(
-									'ne' => array(
-										'type' => 'geo_point'
+									'type' => array(
+										'type' => 'string'
 									),
-									'sw' => array(
-										'type' => 'geo_point'
-									)
-								)
-							),
-							'parent' => array(
-								'type' => 'long'
-							),
-							'woeid' => array(
-								'type' => 'long'
-							),
-							'woeid_adjacent' => array(
-								'type' => 'long'
-							)
-						)
+									'id' => array(
+										'type' => 'long'
+									),
+									'bbox' => array(
+										'type' => 'double'
+									),
+									'geometry' => array(
+										'properties' => array(
+											'coordinates' => array(
+												'type' => 'geo_point'
+											),
+											'type' => array(
+												'type' => 'string'
+											)
+										)
+									),
+									'properties' => array(
+										'properties' => array(
+											'woe:id' => array(
+												'type' => 'long'
+											),
+											// was [woe]id_supersedes
+											'woe:supersedes' => array(
+												'type' => 'long'
+											),
+											// was [woe]id_superseded_by
+											'woe:superseded' => array(
+												'type' => 'long'
+											),
+											'bounds' => array(
+												'type' => 'geo_shape'
+											),
+											'history' => array(
+												'properties' => array(
+													'source' => array(
+														'type' => 'string'
+													),
+													'timestamp' => array(
+														'type' => 'long'
+													)
+												)
+											),
+											'iso' => array(
+												'type' => 'string'
+											),
+											'lang' => array(
+												'type' => 'string'
+											),
+											'name' => array(
+												'type' => 'string'
+											),
+											'woe:type' => array(
+												'type' => 'integer'
+											),
+											'woe:placetype' => array(
+												'type' => 'string'
+											),
+											'woe:parent' => array(
+												'type' => 'long'
+											),
+											'woe:adjacent' => array(
+												'type' => 'long'
+											),
+											'alias_Q' => array(
+												'properties' => array(
+													'name' => array(
+														'type' => 'string'
+													),
+													'lang' => array(
+														'type' => 'string'
+													)
+												)
+											),
+											'alias_V' => array(
+												'properties' => array(
+													'name' => array(
+														'type' => 'string'
+													),
+													'lang' => array(
+														'type' => 'string'
+													)
+												)
+											),
+											'alias_A' => array(
+												'properties' => array(
+													'name' => array(
+														'type' => 'string'
+													),
+													'lang' => array(
+														'type' => 'string'
+													)
+												)
+											),
+											'alias_S' => array(
+												'properties' => array(
+													'name' => array(
+														'type' => 'string'
+													),
+													'lang' => array(
+														'type' => 'string'
+													)
+												)
+											)
+										)	// end-properties
+									)	// end-properties
+								) // end-properties
+							)	// end-features
+						)	// end-properties
 					),
 					self::ADMINS_TYPE => array(
 						'_timestamp' => array(
 							'enabled' => true
 						),
 						'properties' => array(
-							'woeid' => array(
+							'woe:id' => array(
 								'type' => 'long'
 							),
-							'woeid_continent' => array(
+							'woe:continent' => array(
 								'type' => 'long'
 							),
-							'woeid_country' => array(
+							'woe:country' => array(
 								'type' => 'long'
 							),
-							'woeid_county' => array(
+							'woe:county' => array(
 								'type' => 'long'
 							),
-							'woeid_localadmin' => array(
+							'woe:localadmin' => array(
 								'type' => 'long'
 							),
-							'woeid_state' => array(
+							'woe:state' => array(
 								'type' => 'long'
 							)
 						)
@@ -331,11 +459,13 @@ class GeoPlanetImporter {
 						)
 					)
 				)
-			)
-		);
+			);
 
-		$this->logVerbose("Creating index " . self::INDEX);
-		$this->es->indices()->create($params);
+			$params['body'] = $body;
+			$this->logVerbose("Creating index " . self::INDEX);
+			$this->es->indices()->create($params);
+		}
+
 		$elapsed = $this->seconds_to_time($this->elapsed('setup'));
 		$this->log("Completed Elasticsearch index and type mappings in $elapsed");
 	}
@@ -347,13 +477,21 @@ class GeoPlanetImporter {
 	private function index_places() {
 		$this->elapsed('places');
 
-		if ($this->sqlite[self::COORDS_STAGE]['handle'] === NULL) {
-			$name = 'sqlite:' . $this->sqlite[self::COORDS_STAGE]['path'];
-			$this->sqlite[self::COORDS_STAGE]['handle'] = new PDO($name);
+		$has_coords = true;
+		if (false === array_key_exists($this->coords, $this->files)) {
+			$this->log("Missing $this->coords: skipping coordinates");
+			$has_coords = false;
 		}
-		$db = $this->sqlite[self::COORDS_STAGE]['handle'];
-		$tsv = new GeoPlanetDataReader();
 
+		if ($has_coords) {
+			if ($this->sqlite[self::COORDS_STAGE]['handle'] === NULL) {
+				$name = 'sqlite:' . $this->sqlite[self::COORDS_STAGE]['path'];
+				$this->sqlite[self::COORDS_STAGE]['handle'] = new PDO($name);
+			}
+			$db = $this->sqlite[self::COORDS_STAGE]['handle'];
+		}
+
+		$tsv = new GeoPlanetDataReader();
 		$tsv->open($this->files[$this->places]);
 		$total = $tsv->size();
 
@@ -390,56 +528,83 @@ class GeoPlanetImporter {
 		while (($data = $tsv->get()) !== false) {
 			$row++;
 			$this->check_raw_places($row, $data);
+			$old =$this->get_by_woeid($data['WOE_ID']);
+
+			$placetype = $this->placetypes->get_by_shortname($data['PlaceType']);
+			if (!$placetype['found']) {
+				throw new Exception('Cannot find match for placetype ' . $data['PlaceType'] . ' for WOEID ' . $data['WOE_ID']);
+			}
+
 
 			$params = array(
 				'body' => array(
-					'woeid' => $data['WOE_ID'],
-					'iso' => $data['ISO'],
-					'name' => $data['Name'],
-					'lang' => $data['Language'],
-					'type' => $data['PlaceType'],
-					'parent' => $data['Parent_ID'],
-					'centroid' => array(
-						'lat' => 0,
-						'lon' => 0
-					),
-					'bbox' => array(
-						'sw' => array(
-							'lat' => 0,
-							'lon' => 0
-						),
-						'ne' => array(
-							'lat' => 0,
-							'lon' => 0
+					'type' => 'FeatureCollection',
+					'features' => array(
+						array(
+							'type' => 'Feature',
+							'id' => (int) $data['WOE_ID'],
+							/*'bbox' => array(0, 0, 0, 0),*/
+							'geometry' => array(
+								'type' => 'Point',
+								'coordinates' => array(0, 0)
+							),
+							'properties' => array(
+								'woe:id' => (int) $data['WOE_ID'],
+								'iso' => $data['ISO'],
+								'name' => $data['Name'],
+								'lang' => $data['Language'],
+								'woe:type' => (int) $placetype['placetype']['id'],
+								'woe:placetype' => $placetype['placetype']['name'],
+								'woe:parent' => (int) $data['Parent_ID'],
+								/*'bounds' => array(
+									'type' => 'Polygon',
+									'coordinates' => array(
+										array(
+											array(0, 0),
+											array(0, 0)
+										)
+									)
+								),*/
+								'history' => $this->history
+							)
 						)
-					),
-					'provider_metadata' => $this->provider
+					)
 				),
 				'index' => self::INDEX,
 				'type' => self::PLACES_TYPE,
-				'id' => $data['WOE_ID'],
+				'id' => (int) $data['WOE_ID']
 			);
 
-			$statement = $db->prepare($select);
-			$statement->bindParam(':woeid', $data['WOE_ID']);
-			$statement->execute();
-			$coords = $statement->fetch(PDO::FETCH_ASSOC);
-			if ($coords) {
-				$params['body']['centroid']['lat'] = $coords['lat'];
-				$params['body']['centroid']['lon'] = $coords['lon'];
-				$params['body']['bbox']['sw']['lat'] = $coords['swlat'];
-				$params['body']['bbox']['sw']['lon'] = $coords['swlon'];
-				$params['body']['bbox']['ne']['lat'] = $coords['nelat'];
-				$params['body']['bbox']['ne']['lon'] = $coords['nelon'];
+			if ($has_coords) {
+				$statement = $db->prepare($select);
+				$statement->bindParam(':woeid', $data['WOE_ID']);
+				$statement->execute();
+				$coords = $statement->fetch(PDO::FETCH_ASSOC);
+				if ($coords) {
+					$params['body']['features'][0]['geometry']['coordinates'] = array((double) $coords['lon'], (double) $coords['lat']);
+
+					$bbox = new BoundingBox((double) $coords['swlon'], (double) $coords['swlat'], (double) $coords['nelon'], (double) $coords['nelat']);
+					if (!$bbox->is_empty()) {
+						$params['body']['features'][0]['bbox'] = $bbox->to_geojson();
+						$params['body']['features'][0]['properties']['bounds'] = $bbox->to_polygon();
+					}
+				}
 			}
 
-			$old =$this->get_by_woeid($data['WOE_ID']);
 			if ($old['found']) {
-				if (isset($old['_source']['woeid_supersedes'])) {
-					$params['body']['woeid_supersedes'] = $old['_source']['woeid_supersedes'];
+				$history = array();
+				if (isset($old['_source']['features'][0]['properties']['history'])) {
+					$history = $old['_source']['features'][0]['properties']['history'];
 				}
-				if (isset($old['_source']['woeid_superseded_by'])) {
-					$params['body']['woeid_superseded_by'] = $old['_source']['woeid_superseded_by'];
+				$history[] = $this->history;
+				$params['body']['features'][0]['properties']['history'] = $history;
+
+				if (isset($old['_source']['features'][0]['properties']['woe:supersedes'])) {
+					$params['body']['features'][0]['properties']['woe:supersedes'] = $old['_source']['features'][0]['properties']['woe:supersedes'];
+				}
+
+				if (isset($old['_source']['features'][0]['properties']['woe:superseded'])) {
+					$params['body']['features'][0]['properties']['woe:superseded'] = $old['_source']['features'][0]['properties']['woe:superseded'];
 				}
 			}
 
@@ -472,67 +637,75 @@ class GeoPlanetImporter {
 	private function index_coords() {
 		$this->elapsed('coords');
 
-		if ($this->sqlite[self::COORDS_STAGE]['handle'] === NULL) {
-			$name = 'sqlite:' . $this->sqlite[self::COORDS_STAGE]['path'];
-			$this->sqlite[self::COORDS_STAGE]['handle'] = new PDO($name);
-		}
-		$db = $this->sqlite[self::COORDS_STAGE]['handle'];
-		$tsv = new GePplanetDataReader();
-
-		$tsv->open($this->files[$this->coords]);
-		$total = $tsv->size();
-
-		if ($this->purge) {
-			$this->logVerbose('Purging table "geoplanets_coords" from cache');
-			$drop = "DROP TABLE geoplanet_coords";
-			$db->exec($drop);
+		$has_coords = true;
+		if (false === array_key_exists($this->coords, $this->files)) {
+			$this->log("Missing $this->coords: skipping coordinates");
+			$has_coords = false;
 		}
 
-		$this->log("Caching $total coordinates");
+		if ($has_coords) {
+			if ($this->sqlite[self::COORDS_STAGE]['handle'] === NULL) {
+				$name = 'sqlite:' . $this->sqlite[self::COORDS_STAGE]['path'];
+				$this->sqlite[self::COORDS_STAGE]['handle'] = new PDO($name);
+			}
+			$db = $this->sqlite[self::COORDS_STAGE]['handle'];
+			$tsv = new GeoPlanetDataReader();
 
-		$setup = "CREATE TABLE geoplanet_coords(
-			woeid INTEGER PRIMARY KEY,
-			lat REAL,
-			lon REAL,
-			swlat REAL,
-			swlon REAL,
-			nelat REAL,
-			nelon REAL);";
-		$db->exec($setup);
+			$tsv->open($this->files[$this->coords]);
+			$total = $tsv->size();
 
-		$row = 0;
+			if ($this->purge) {
+				$this->logVerbose('Purging table "geoplanets_coords" from cache');
+				$drop = "DROP TABLE geoplanet_coords";
+				$db->exec($drop);
+			}
 
-		while (($data = $tsv->get()) !== false) {
-			$row++;
-			$this->check_raw_coords($row, $data);
+			$this->log("Caching $total coordinates");
 
-			$insert = "INSERT INTO geoplanet_coords(woeid,lat,lon,swlat,swlon,nelat,nelon)
-				VALUES(:woeid,:lat,:lon,:swlat,:swlon,:nelat,:nelon)";
+			$setup = "CREATE TABLE geoplanet_coords(
+				woeid INTEGER PRIMARY KEY,
+				lat REAL,
+				lon REAL,
+				swlat REAL,
+				swlon REAL,
+				nelat REAL,
+				nelon REAL);";
+			$db->exec($setup);
 
-			$statement = $db->prepare($insert);
-			$statement->bindParam(':woeid', $data['WOE_ID']);
+			$row = 0;
 
-			$lat = $this->sanitize_coord($data['Lat']);
-			$lon = $this->sanitize_coord($data['Lon']);
-			$statement->bindParam(':lat', $lat);
-			$statement->bindParam(':lon', $lon);
+			while (($data = $tsv->get()) !== false) {
+				$row++;
+				$this->check_raw_coords($row, $data);
 
-			$nelat = $this->sanitize_coord($data['NE_Lat']);
-			$nelon = $this->sanitize_coord($data['NE_Lon']);
-			$statement->bindParam(':nelat', $nelat);
-			$statement->bindParam(':nelon', $nelon);
+				$insert = "INSERT INTO geoplanet_coords(woeid,lat,lon,swlat,swlon,nelat,nelon)
+					VALUES(:woeid,:lat,:lon,:swlat,:swlon,:nelat,:nelon)";
 
-			$swlat = $this->sanitize_coord($data['SW_Lat']);
-			$swlon = $this->sanitize_coord($data['SW_Lon']);
-			$statement->bindParam(':swlat', $swlat);
-			$statement->bindParam(':swlon', $swlon);
+				$statement = $db->prepare($insert);
+				$statement->bindParam(':woeid', $data['WOE_ID']);
 
-			$statement->execute();
+				$lat = $this->sanitize_coord($data['Lat']);
+				$lon = $this->sanitize_coord($data['Lon']);
+				$statement->bindParam(':lat', $lat);
+				$statement->bindParam(':lon', $lon);
 
-			$this->show_status($row, $total);
+				$nelat = $this->sanitize_coord($data['NE_Lat']);
+				$nelon = $this->sanitize_coord($data['NE_Lon']);
+				$statement->bindParam(':nelat', $nelat);
+				$statement->bindParam(':nelon', $nelon);
+
+				$swlat = $this->sanitize_coord($data['SW_Lat']);
+				$swlon = $this->sanitize_coord($data['SW_Lon']);
+				$statement->bindParam(':swlat', $swlat);
+				$statement->bindParam(':swlon', $swlon);
+
+				$statement->execute();
+
+				$this->show_status($row, $total);
+			}
+
+			$tsv->close();
 		}
-
-		$tsv->close();
 
 		$elapsed = $this->seconds_to_time($this->elapsed('coords'));
 		$this->log("Completed indexing coordinates in $elapsed");
@@ -544,78 +717,81 @@ class GeoPlanetImporter {
 
 	private function index_changes() {
 		$this->elapsed('changes');
-
-		$tsv = new GeoPlanetDataReader();
-		$tsv->open($this->files[$this->changes]);
-		$total = $tsv->size();
-
-		$this->log("Indexing $total changes");
 		$row = 0;
+		$total = 0;
 
-		$logs = array();
-		while (($data = $tsv->get()) !== false) {
-			$row++;
-			$this->check_raw_changes($row, $data);
-
-			// Hey, let's be consistent in our column naming convention ... WTF
-			$old_woeid = $data['Woe_id'];
-			$new_woeid = $data['Rep_id'];
-
-			$old = $this->get_by_woeid($old_woeid);
-			$new = $this->get_by_woeid($new_woeid);
-
-			$params = array(
-				'body' => array(
-					'doc' => array(
-						'woeid' => $old_woeid,
-						'woeid_superseded_by' => $new_woeid,
-						'provider_metadata' => $this->provider
-					),
-					'doc_as_upsert' => true
-				),
-				'index' => self::INDEX,
-				'type' => self::PLACES_TYPE,
-				'id' => $old_woeid
-			);
-
-			$this->es->update($params);
-
-			if ($new['found']) {
-				$supersedes = array();
-				if (isset($new['body']['woeid_supersedes'])) {
-					$supersedes = $new['body']['woeid_superseded'];
-				}
-				if (array_search($old_woeid, $supersedes)== false) {
-					$supersedes[] = $old_woeid;
-
-					$params = array(
-						'body' => array(
-							'doc' => array(
-								'woeid' => $new_woeid,
-								'woeid_supersedes' => $supersedes,
-								'provider_metadata' => $this->provider
-							),
-							'doc_as_upsert' => true
-						),
-						'index' => self::INDEX,
-						'type' => self::PLACES_TYPE,
-						'id' => $new_woeid
-					);
-
-					$this->es->update($params);
-				}
-			}
-
-			else {
-				$logs[] = "WTF ... no record found for new WOEID $new_woeid";
-			}
-
-			$this->show_status($row, $total);
+		$has_changes = true;
+		if (false === array_key_exists($this->changes, $this->files)) {
+			$this->log("Missing $this->changes: skipping changes");
+			$has_changes = false;
 		}
 
-		if (count($logs) > 0) {
-			foreach ($logs as $log) {
-				$this->log($log);
+		if ($has_changes) {
+			$tsv = new GeoPlanetDataReader();
+			$tsv->open($this->files[$this->changes]);
+			$total = $tsv->size();
+
+			$this->log("Indexing $total changes");
+			$row = 0;
+
+			$logs = array();
+			while (($data = $tsv->get()) !== false) {
+				$row++;
+				$this->check_raw_changes($row, $data);
+
+				// Hey, let's be consistent in our column naming convention ... WTF
+				$old_woeid = $data['Woe_id'];
+				$new_woeid = $data['Rep_id'];
+
+				$old = $this->get_by_woeid($old_woeid);
+				$new = $this->get_by_woeid($new_woeid);
+
+				if ($old['found']) {
+					$params = array(
+						'body' => $old['_source'],
+						'index' => self::INDEX,
+						'type' => self::PLACES_TYPE,
+						'id' => $old_woeid
+					);
+					$params['body']['features'][0]['properties']['woe:superseded'] = $new_woeid;
+
+					$this->es->index($params);
+				}
+				else {
+					$logs[] = "WTF ... no document found for old WOEID $new_woeid";
+				}
+
+				if ($new['found']) {
+					$supersedes = array();
+					if (isset($new['body']['features'][0]['properties']['woe:supersedes'])) {
+						$supersedes = $new['body']['features'][0]['properties']['woe:superseded'];
+					}
+					if (array_search($old_woeid, $supersedes) == false) {
+						$supersedes[] = $old_woeid;
+
+						$params = array(
+							'body' => $new['_source'],
+							'index' => self::INDEX,
+							'type' => self::PLACES_TYPE,
+							'id' => $new_woeid
+						);
+						$params['body']['features'][0]['properties']['woe:supersedes'] = $superseded;
+
+						$this->es->index($params);
+					}
+				}
+
+				else {
+					$logs[] = "WTF ... no record found for new WOEID $new_woeid";
+				}
+
+				$this->show_status($row, $total);
+			}
+
+			if (count($logs) > 0) {
+				foreach ($logs as $log) {
+					$this->log($log);
+				}
 			}
 		}
 
@@ -705,21 +881,17 @@ class GeoPlanetImporter {
 				$adjacent[] = $neighbour['neighbour'];
 			}
 
+			$doc = $this->get_by_woeid($adj['woeid']);
 			$params = array(
-				'body' => array(
-					'doc' => array(
-						'woeid' => $adj['woeid'],
-						'woeid_adjacent' => $adjacent,
-						'provider_metadata' => $this->provider
-					),
-					'doc_as_upsert' => true
-				),
+				'body' => $doc['_source'],
 				'index' => self::INDEX,
 				'type' => self::PLACES_TYPE,
 				'id' => $adj['woeid']
 			);
+			$params['body']['features'][0]['properties']['woe:adjacent'] = $adjacent;
 
-			$this->es->update($params);
+			$this->es->index($params);
+
 			$this->show_status($row, $count);
 		}
 
@@ -754,28 +926,29 @@ class GeoPlanetImporter {
 
 		$this->log("Caching and aggregating $total aliases");
 
-		$setup = "CREATE TABLE geoplanet_aliases (
+		$setup = "CREATE TABLE IF NOT EXISTS geoplanet_aliases (
 			woeid INTEGER,
 			name TEXT,
-			type TEXT
-		)";
+			type TEXT,
+			lang TEXT
+		);";
 		$db->exec($setup);
 
-		$setup = "CREATE INDEX aliases_by_woeid ON geoplanet_aliases (woeid)";
+		$setup = "CREATE INDEX aliases_by_woeid ON geoplanet_aliases(woeid);";
 		$db->exec($setup);
 
 		$row = 0;
-		$insert = "INSERT INTO geoplanet_aliases(woeid, name, type) VALUES(:woeid,:name,:type)";
+		$insert = "INSERT INTO geoplanet_aliases(woeid, name, type, lang) VALUES(:woeid,:name,:type,:lang)";
 		$statement = $db->prepare($insert);
 
 		while (($data = $tsv->get()) !== false) {
 			$row++;
 			$this->check_raw_aliases($row, $data);
 
-
 			$statement->bindParam(':woeid', $data['WOE_ID']);
 			$statement->bindParam(':name', $data['Name']);
 			$statement->bindParam(':type', $data['Name_Type']);
+			$statement->bindParam(':lang', $data['Language']);
 
 			$statement->execute();
 			$this->show_status($row, $total);
@@ -820,34 +993,38 @@ class GeoPlanetImporter {
 				$woeid = $alias['woeid'];
 				$name = $alias['name'];
 				$type = $alias['type'];
-				$key = sprintf('alias_%s', $type);
+				$lang = $alias['lang'];
+				$key = sprintf('woe:alias_%s', $type);
 
 				$names = array();
 				if (array_key_exists($key, $aliases)) {
 					$names = $aliases[$key];
 				}
-				$names[] = $name;
+
+				$element = array(
+					'name' => $name,
+					'lang' => $lang
+				);
+				if (!in_array($element, $names, true)) {
+					$names[] = $element;
+				}
 				$aliases[$key] = $names;
 			}
 
+			$doc = $this->get_by_woeid($id);
 			$params = array(
-				'body' => array(
-					'doc' => array(
-						'woeid' => $id,
-						'provider_metadata' => $this->provider
-					),
-					'doc_as_upsert' => true
-				),
+				'body' => $doc['_source'],
 				'index' => self::INDEX,
 				'type' => self::PLACES_TYPE,
 				'id' => $id
 			);
 
+
 			foreach ($aliases as $key => $value) {
-				$params['body']['doc'][$key] = $value;
+				$params['body']['features'][0]['properties'][$key] = $value;
 			}
 
-			$this->es->update($params);
+			$this->es->index($params);
 			$this->show_status($row, $total);
 		}
 
@@ -865,52 +1042,63 @@ class GeoPlanetImporter {
 		$this->log("Indexing admins");
 		$this->elapsed('admins');
 
-		$tsv = new GeoPlanetDataReader();
+		$row = 0;
+		$total = 0;
 
-		$tsv->open($this->files[$this->admins]);
-		$total = $tsv->size();
-
-		if ($this->purge) {
-			$this->logVerbose('Purging type "admins" from index "woeplanet"');
-			$purge = array(
-				'body' => array(
-					'query' => array(
-						'match_all' => array()
-					)
-				),
-				'index' => self::INDEX,
-				'type' => self::ADMINS_TYPE,
-				'ignore' => 404
-			);
-			$resp = $this->es->deleteByQuery($purge);
-			$refresh = array(
-				'index' => self::INDEX
-			);
-			$resp = $this->es->indices()->refresh($refresh);
+		$has_admins = true;
+		if (false === array_key_exists($this->admins, $this->files)) {
+			$this->log("Missing $this->admins: skipping admins");
+			$has_admins = false;
 		}
 
-		$row = 0;
+		if ($has_admins) {
+			$tsv = new GeoPlanetDataReader();
 
-		while(($data = $tsv->get()) !== false) {
-			$row++;
-			$this->check_raw_admins($row, $data);
+			$tsv->open($this->files[$this->admins]);
+			$total = $tsv->size();
 
-			$params = array(
-				'body' => array(
-					'woeid' => $data['WOE_ID'],
-					'iso' => $data['ISO'],
-					'woeid_state' => $data['State'],
-					'woeid_county' => $data['County'],
-					'woeid_localadmin' => $data['Local_Admin'],
-					'woeid_country' => $data['Country'],
-					'woeid_continent' => $data['Continent']
-				),
-				'index' => self::INDEX,
-				'type' => self::ADMINS_TYPE,
-				'id' => $data['WOE_ID']
-			);
-			$this->es->index($params);
-			$this->show_status($row, $total);
+			if ($this->purge) {
+				$this->logVerbose('Purging type "admins" from index "woeplanet"');
+				$purge = array(
+					'body' => array(
+						'query' => array(
+							'match_all' => array()
+						)
+					),
+					'index' => self::INDEX,
+					'type' => self::ADMINS_TYPE,
+					'ignore' => 404
+				);
+				$resp = $this->es->deleteByQuery($purge);
+				$refresh = array(
+					'index' => self::INDEX
+				);
+				$resp = $this->es->indices()->refresh($refresh);
+			}
+
+			$row = 0;
+
+			while(($data = $tsv->get()) !== false) {
+				$row++;
+				$this->check_raw_admins($row, $data);
+
+				$params = array(
+					'body' => array(
+						'woe:id' => $data['WOE_ID'],
+						'iso' => $data['ISO'],
+						'woe:state' => $data['State'],
+						'woe:county' => $data['County'],
+						'woe:localadmin' => $data['Local_Admin'],
+						'woe:country' => $data['Country'],
+						'woe:continent' => $data['Continent']
+					),
+					'index' => self::INDEX,
+					'type' => self::ADMINS_TYPE,
+					'id' => $data['WOE_ID']
+				);
+				$this->es->index($params);
+				$this->show_status($row, $total);
+			}
 		}
 
 		$elapsed = $this->seconds_to_time($this->elapsed('admins'));
@@ -944,188 +1132,7 @@ class GeoPlanetImporter {
 			$resp = $this->es->indices()->refresh($refresh);
 		}
 
-		$placetypes = array(
-			array(
-				'id' => 6,
-				'name' => 'Street',
-				'description' => 'A street',
-				'shortname' => 'Street'
-			),
-			array (
-				'id' => 7,
-				'name' => 'Town',
-				'description' => 'A populated settlement such as a city, town, village',
-				'shortname' => 'Town'
-			),
-			array (
-				'id' => 8,
-				'name' => 'State',
-				'description' => 'One of the primary administrative areas within a country',
-				'shortname' => 'State'
-			),
-			array (
-				'id' => 9,
-				'name' => 'County',
-				'description' => 'One of the secondary administrative areas within a country',
-				'shortname' => 'County'
-			),
-			array (
-				'id' => 10,
-				'name' => 'Local Administrative Area',
-				'description' => 'One of the tertiary administrative areas within a country',
-				'shortname' => 'LocalAdmin'
-			),
-			array (
-				'id' => 11,
-				'name' => 'Postal Code',
-				'description' => 'A partial or full postal code',
-				'shortname' => 'Zip'
-			),
-			array (
-				'id' => 12,
-				'name' => 'Country',
-				'description' => 'One of the countries or dependent territories defined by the ISO 3166-1 standard',
-				'shortname' => 'Country'
-			),
-			array (
-				'id' => 13,
-				'name' => 'Island',
-				'description' => 'An island',
-				'shortname' => 'Island'
-			),
-			array(
-				'id' => 14,
-				'name' => 'Airport',
-				'description' => 'An airport',
-				'shortname' => 'Airport'
-			),
-			array (
-				'id' => 15,
-				'name' => 'Drainage',
-				'description' => 'A water feature such as a river, canal, lake, bay, ocean',
-				'shortname' => 'Drainage'
-			),
-			array (
-				'id' => 16,
-				'name' => 'Land Feature',
-				'description' => 'A land feature such as a park, mountain, beach',
-				'shortname' => 'LandFeature'
-			),
-			array (
-				'id' => 17,
-				'name' => 'Miscellaneous',
-				'description' => 'A uncategorized place',
-				'shortname' => 'Miscellaneous'
-			),
-			array (
-				'id' => 18,
-				'name' => 'Nationality',
-				'description' => 'An area affiliated with a nationality',
-				'shortname' => 'Nationality'
-			),
-			array (
-				'id' => 19,
-				'name' => 'Supername',
-				'description' => 'An area covering multiple countries',
-				'shortname' => 'Supername'
-			),
-			array (
-				'id' => 20,
-				'name' => 'Point of Interest',
-				'description' => 'A point of interest such as a school, hospital, tourist attraction',
-				'shortname' => 'POI'
-			),
-			array (
-				'id' => 21,
-				'name' => 'Region',
-				'description' => 'An area covering portions of several countries',
-				'shortname' => 'Region'
-			),
-			array (
-				'id' => 22,
-				'name' => 'Suburb',
-				'description' => 'A subdivision of a town such as a suburb or neighborhood',
-				'shortname' => 'Suburb'
-			),
-			array (
-				'id' => 23,
-				'name' => 'Sports Team',
-				'description' => 'A sports team',
-				'shortname' => 'Sports Team'
-			),
-			array (
-				'id' => 24,
-				'name' => 'Colloquial',
-				'description' => 'A place known by a colloquial name',
-				'shortname' => 'Colloquial'
-			),
-			array (
-				'id' => 25,
-				'name' => 'Zone',
-				'description' => 'An area known within a specific context such as MSA or area code',
-				'shortname' => 'Zone'
-			),
-			array (
-				'id' => 26,
-				'name' => 'Historical State',
-				'description' => 'A historical primary administrative area within a country',
-				'shortname' => 'HistoricalState'
-			),
-			array (
-				'id' => 27,
-				'name' => 'Historical County',
-				'description' => 'A historical secondary administrative area within a country',
-				'shortname' => 'HistoricalCounty'
-			),
-			array (
-				'id' => 29,
-				'name' => 'Continent',
-				'description' => 'One of the major land masses on the Earth',
-				'shortname' => 'Continent'
-			),
-			array (
-				'id' => 31,
-				'name' => 'Time Zone',
-				'description' => 'An area defined by the Olson standard (tz database)',
-				'shortname' => 'Timezone'
-			),
-			array (
-				'id' => 32,
-				'name' => 'Nearby Intersection',
-				'description' => 'An intersection of streets that is nearby to the streets in a query string',
-				'shortname' => 'Nearby Intersection'
-			),
-			array (
-				'id' => 33,
-				'name' => 'Estate',
-				'description' => 'A housing development or subdivision known by name',
-				'shortname' => 'Estate'
-			),
-			array (
-				'id' => 35,
-				'name' => 'Historical Town',
-				'description' => 'A historical populated settlement that is no longer known by its original name',
-				'shortname' => 'HistoricalTown'
-			),
-			array (
-				'id' => 36,
-				'name' => 'Aggregate',
-				'description' => 'An aggregate place',
-				'shortname' => 'Aggregate'
-			),
-			array (
-				'id' => 37,
-				'name' => 'Ocean',
-				'description' => 'One of the five major bodies of water on the Earth',
-				'shortname' => 'Ocean'
-			),
-			array (
-				'id' => 38,
-				'name' => 'Sea',
-				'description' => 'An area of open water smaller than an ocean',
-				'shortname' => 'Sea'
-			)
-		);
+		$placetypes = $this->placetypes->get();
 
 		$total = count($placetypes);
 		$row = 0;
@@ -1150,6 +1157,34 @@ class GeoPlanetImporter {
 		$this->log("\nIndexed $row of $total placetypes");
 		$elapsed = $this->seconds_to_time($this->elapsed('placetypes'));
 		$this->log("Completed indexing placetypes in $elapsed");
+	}
+
+	private function run_test() {
+		$this->log("Running test code");
+		$this->elapsed('test');
+
+		$woeid = 44418;
+
+		$entry = $this->get_by_woeid($woeid);
+		$this->log('entry dump');
+		$this->log(var_export($entry, true));
+
+		$source = &$entry['_source'];
+		$feature = &$source['features'][0];
+
+		$this->log('feature dump');
+		$this->log(var_export($feature, true));
+
+		$feature['properties']['woe:adjacent'] = array(1, 2, 3, 4);
+
+		$this->log('updated dump');
+		$this->log(var_export($feature, true));
+
+		$this->log('updated entry');
+		$this->log(var_export($entry, true));
+
+		$elapsed = $this->seconds_to_time($this->elapsed('test'));
+		$this->log("Completed test run in $elapsed");
 	}
 
 	/***************************************************************************
@@ -1185,7 +1220,8 @@ class GeoPlanetImporter {
 			'adjacencies' => null,
 			'aliases' => null,
 			'admins' => null,
-			'placetypes' => null
+			'placetypes' => null,
+			'test' => null
 		);
 
 		//$now = microtime(true);
@@ -1293,7 +1329,7 @@ class GeoPlanetImporter {
 	}
 
 	private function check_raw_aliases($row, $data) {
-		$fields = array(self::ALIAS_WOEID, self::ALIAS_NAME, self::ALIAS_TYPE);
+		$fields = array(self::ALIAS_WOEID, self::ALIAS_NAME, self::ALIAS_TYPE, self::ALIAS_LANG);
 
 		$this->check_raw_data($this->aliases, $row, $data, $fields);
 	}
@@ -1320,6 +1356,94 @@ class GeoPlanetImporter {
 			var_dump($data);
 			throw new Exception("$file:$row - Missing fields $fields");
 		}
+	}
+}
+
+class BoundingBox {
+	private $swlon;
+	private $swlat;
+	private $nelon;
+	private $nelat;
+
+	public function __construct($swlon, $swlat, $nelon, $nelat) {
+		$this->swlon = (double) $swlon;
+		$this->swlat = (double) $swlat;
+		$this->nelon = (double) $nelon;
+		$this->nelat = (double) $nelat;
+	}
+
+	public function is_empty() {
+		return ($this->swlon == 0 && $this->swlat == 0 && $this->nelon == 0 && $this->nelat == 0);
+	}
+
+	public function to_geojson() {
+		return array($this->swlon, $this->swlat, $this->nelon, $this->nelat);
+	}
+
+	public function to_envelope() {
+		$north = $this->nelat;
+		$east = $this->nelon;
+		$south = $this->swlat;
+		$west = $this->swlon;
+
+		return array(
+			'type' => 'envelope',
+			'coordinates' => array(
+				array($east, $south),
+				array($west, $north)
+
+			)
+		);
+	}
+
+	public function to_polygon() {
+		$north = $this->nelat;
+		$east = $this->nelon;
+		$south = $this->swlat;
+		$west = $this->swlon;
+
+		return array(
+			'type' => 'Polygon',
+			'coordinates' => array(
+				array(
+					array($this->swlon, $this->swlat),
+					array($west, $north),
+					array($this->nelon, $this->nelat),
+					array($east, $south),
+					array($this->swlon, $this->swlat)
+				)
+			)
+		);
+	}
+}
+
+class MachineTag {
+	private $placetypes;
+
+	public function __construct() {
+		$this->placetypes = new WoePlanetPlaceTypes();
+	}
+
+	public function placetype($woeid, $placetype) {
+		$pt = $this->placetypes->get_by_id($placetype);
+
+		return 'woeplanet:' . $pt['placetype']['tag'] . '=' . $woeid;
+	}
+
+	public function relationship($woeid, $rel) {
+		return 'woeplanet:' . $rel . '=' . $woeid;
+	}
+
+	public function parse($tag) {
+		$parts = explode('=', $tag);
+		$key = explode(':', $parts[0]);
+		$value = $parts[1];
+
+		return array(
+			'namespace' => $key[0],
+			'predicate' => $key[1],
+			'id' => $value
+		);
 	}
 }
 
