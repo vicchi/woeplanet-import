@@ -1,6 +1,8 @@
 <?php
 
-class GeoPlanetDataReader {
+namespace Woeplanet;
+
+class Reader {
 	private $handle = NULL;
 	private $line_length = 1000;
 	private $separator = "\t";

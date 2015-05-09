@@ -1,0 +1,241 @@
+{
+    "_index": "woeplanet",
+    "_type": "places",
+    "_id": "44418",
+    "_version": 1,
+    "found": true,
+    "_source": {
+        "woe:id": 44418,
+        "iso": "GB",
+        "name": "London",
+        "lang": "ENG",
+        "woe:centroid": [
+            -0.12714,
+            51.506321
+        ],
+        "woe:bbox": [
+            [
+                -0.563,
+                51.261318
+            ],
+            [
+                0.28036,
+                51.686031
+            ]
+        ],
+        "woe:bounds": [
+            [
+                -0.563,
+                51.261
+            ],
+            [
+                -0.563,
+                51.686
+            ],
+            [
+                0.28,
+                51.686
+            ],
+            [
+                0.28,
+                51.261
+            ],
+            [
+                -0.563,
+                51.261
+            ]
+        ],
+        "woe:placetype": 7,
+        "woe:placetypename": "Town",
+        "woe:parent": 23416974,
+        "woe:supercedes": 1234,
+        "woe:superceded": 1234,
+        "woe:adjacent": [
+            "woe:town=18074",
+            "woe:town=19919",
+            "woe:town=19551",
+            "woe:town=14482",
+            "woe:town=15786",
+            "woe:town=11448",
+            "woe:town=35986",
+            "woe:town=31287",
+            "woe:town=30600",
+            "woe:town=24596",
+            "woe:town=39684",
+            "woe:town=26662",
+            "woe:town=23839",
+            "woe:town=37214",
+            "woe:town=39437",
+            "woe:town=15824",
+            "woe:town=25681",
+            "woe:town=21746",
+            "woe:town=12052",
+            "woe:town=28278",
+            "woe:town=18076",
+            "woe:town=35337",
+            "woe:town=17535",
+            "woe:town=17333",
+            "woe:town=17601",
+            "woe:town=22218",
+            "woe:town=21298",
+            "woe:town=11566",
+            "woe:town=39690",
+            "woe:town=29718",
+            "woe:town=37013",
+            "woe:town=14729",
+            "woe:town=39185",
+            "woe:town=20094177",
+            "woe:town=56064358",
+            "woe:town=26712",
+            "woe:town=23517",
+            "woe:town=29719",
+            "woe:town=28976",
+            "woe:town=15566",
+            "woe:town=40561",
+            "woe:town=25556",
+            "woe:town=22552",
+            "woe:town=16174",
+            "woe:town=21490",
+            "woe:town=28835375",
+            "woe:town=13267",
+            "woe:town=39912",
+            "woe:town=15890",
+            "woe:town=14384",
+            "woe:suburb=38838",
+            "woe:town=14728",
+            "woe:town=39321",
+            "woe:town=35295",
+            "woe:town=27508",
+            "woe:town=13781",
+            "woe:town=39070",
+            "woe:town=35009",
+            "woe:suburb=17002",
+            "woe:town=34397",
+            "woe:town=36880",
+            "woe:town=39072",
+            "woe:town=37149",
+            "woe:town=36749",
+            "woe:suburb=31092",
+            "woe:town=11791",
+            "woe:town=17953",
+            "woe:town=21536",
+            "woe:town=27397",
+            "woe:town=11209",
+            "woe:town=19055",
+            "woe:town=33295",
+            "woe:town=36612",
+            "woe:town=19643",
+            "woe:town=39188",
+            "woe:suburb=33508",
+            "woe:town=24595",
+            "woe:town=32682",
+            "woe:town=19649",
+            "woe:town=25985",
+            "woe:town=34560",
+            "woe:town=39747",
+            "woe:suburb=38594",
+            "woe:town=11157",
+            "woe:town=15405",
+            "woe:town=19688",
+            "woe:town=32485",
+            "woe:town=40385"
+        ],
+        "woe:alias_DUT_Q": [
+            "Londen"
+        ],
+        "woe:alias_FRE_Q": [
+            "Londres"
+        ],
+        "woe:alias_ITA_Q": [
+            "Londra"
+        ],
+        "woe:alias_POR_Q": [
+            "Londres"
+        ],
+        "woe:alias_SPA_Q": [
+            "Londres"
+        ],
+        "woe:alias_JPN_Q": [
+            "ロンドン"
+        ],
+        "woe:alias_FIN_Q": [
+            "Lontoo"
+        ],
+        "woe:alias_KOR_Q": [
+            "런던"
+        ],
+        "woe:alias_CZE_Q": [
+            "Londýn"
+        ],
+        "woe:alias_POL_Q": [
+            "Londyn"
+        ],
+        "woe:alias_RUM_Q": [
+            "Londra"
+        ],
+        "woe:alias_CHI_Q": [
+            "倫敦"
+        ],
+        "woe:alias_FIN_V": [
+            "Lontooseen",
+            "Lontoosta",
+            "Lontoon kautta"
+        ],
+        "woe:alias_ARA_V": [
+            "لندن"
+        ],
+        "woe:alias_UNK_V": [
+            "Лондон",
+            "Λονδινο",
+            "लंदन",
+            "लदन",
+            "Lundúnir",
+            "Lundunir",
+            "Londonas",
+            "ลอนดอน"
+        ],
+        "woe:alias_KOR_V": [
+            "런던"
+        ],
+        "woe:alias_CHI_V": [
+            "伦敦"
+        ],
+        "woe:alias_ENG_V": [
+            "LON"
+        ],
+        "history": [
+            {
+                "source": "GeoPlanet 7.3.1",
+                "timestamp": 1403102873
+            },
+            {
+                "source": "GeoPlanet 7.3.2",
+                "timestamp": 1403240483
+            },
+            {
+                "source": "GeoPlanet 7.4.0",
+                "timestamp": 1403417454
+            },
+            {
+                "source": "GeoPlanet 7.4.1",
+                "timestamp": 1403446684
+            },
+            {
+                "source": "GeoPlanet 7.5.1",
+                "timestamp": 1403531938
+            },
+            {
+                "source": "GeoPlanet 7.5.2",
+                "timestamp": 1403588795
+            },
+            {
+                "source": "GeoPlanet 7.6.0",
+                "timestamp": 1403673376
+            },
+            {
+                "source": "GeoPlanet 7.8.1",
+                "timestamp": 1403705517
+            }
+        ]
+    }
+}

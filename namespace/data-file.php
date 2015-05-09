@@ -1,13 +1,16 @@
 <?php
 
-class GeoPlanetDataReader {
+namespace Woeplanet;
+
+class DataFile {
 	private $handle = NULL;
 	private $line_length = 1000;
 	private $separator = "\t";
 	private $header = NULL;
 	private $path;
 
-	public function __construct() {
+	public function __construct($path) {
+        $this->path = $path;
 	}
 
 	public function open($path) {
@@ -20,17 +23,12 @@ class GeoPlanetDataReader {
 		}
 
 		$this->header = fgetcsv($this->handle, $this->line_length, $this->separator);
-		if (count($this->header) == 1) {
-			// Try and de-bork the suspect (and space separated) headers that sometimes
-			// crop up (v7.4.0 changes file, I'm looking at you here)
-			$header = implode("", $this->header);
-			$header = preg_replace("/[[:blank:]]+/", " ", $header);
-			$header = preg_replace('/"/', "", $header);
-			$this->header = explode(" ", $header);
-		}
 	}
 
 	public function get() {
+        if ($this->handle === NULL) {
+            $this->open($this->path);
+        }
 		if (($data = fgetcsv($this->handle, $this->line_length, $this->separator)) !== false) {
 			$row = array();
 			foreach ($this->header as $i => $column) {

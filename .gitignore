@@ -3,3 +3,9 @@
 /oauth.php
 
 *.sqlite3
+
+*.log
+
+/namespace/vendor
+
+/namespace/woeplanet-snapshots

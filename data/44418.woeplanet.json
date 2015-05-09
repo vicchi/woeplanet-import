@@ -1,0 +1,286 @@
+{
+    "_index": "woeplanet",
+    "_type": "places",
+    "_id": "44418",
+    "_version": 25,
+    "found": true,
+    "_source": {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": 44418,
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                        0,
+                        0
+                    ]
+                },
+                "properties": {
+                    "woe:id": 44418,
+                    "iso": "GB",
+                    "name": "London",
+                    "lang": "ENG",
+                    "woe:type": 7,
+                    "woe:placetype": "Town",
+                    "woe:parent": 23416974,
+                    "history": [
+                        {
+                            "source": "geoplanet_data 7.3.1",
+                            "timestamp": 1403102873
+                        },
+                        [
+                            {
+                                "source": "geoplanet_data 7.3.2",
+                                "timestamp": 1403240483
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.4.0",
+                                "timestamp": 1403417454
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.4.1",
+                                "timestamp": 1403446684
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.5.1",
+                                "timestamp": 1403531938
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.5.2",
+                                "timestamp": 1403588795
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.6.0",
+                                "timestamp": 1403673376
+                            }
+                        ],
+                        [
+                            {
+                                "source": "geoplanet_data 7.8.1",
+                                "timestamp": 1403705517
+                            }
+                        ]
+                    ],
+                    "woe:adjacent": [
+                        "woe:town=18074",
+                        "woe:town=19919",
+                        "woe:town=19551",
+                        "woe:town=14482",
+                        "woe:town=15786",
+                        "woe:town=11448",
+                        "woe:town=35986",
+                        "woe:town=31287",
+                        "woe:town=30600",
+                        "woe:town=24596",
+                        "woe:town=39684",
+                        "woe:town=26662",
+                        "woe:town=23839",
+                        "woe:town=37214",
+                        "woe:town=39437",
+                        "woe:town=15824",
+                        "woe:town=25681",
+                        "woe:town=21746",
+                        "woe:town=12052",
+                        "woe:town=28278",
+                        "woe:town=18076",
+                        "woe:town=35337",
+                        "woe:town=17535",
+                        "woe:town=17333",
+                        "woe:town=17601",
+                        "woe:town=22218",
+                        "woe:town=21298",
+                        "woe:town=11566",
+                        "woe:town=39690",
+                        "woe:town=29718",
+                        "woe:town=37013",
+                        "woe:town=14729",
+                        "woe:town=39185",
+                        "woe:town=20094177",
+                        "woe:town=56064358",
+                        "woe:town=26712",
+                        "woe:town=23517",
+                        "woe:town=29719",
+                        "woe:town=28976",
+                        "woe:town=15566",
+                        "woe:town=40561",
+                        "woe:town=25556",
+                        "woe:town=22552",
+                        "woe:town=16174",
+                        "woe:town=21490",
+                        "woe:town=28835375",
+                        "woe:town=13267",
+                        "woe:town=39912",
+                        "woe:town=15890",
+                        "woe:town=14384",
+                        "woe:suburb=38838",
+                        "woe:town=14728",
+                        "woe:town=39321",
+                        "woe:town=35295",
+                        "woe:town=27508",
+                        "woe:town=13781",
+                        "woe:town=39070",
+                        "woe:town=35009",
+                        "woe:suburb=17002",
+                        "woe:town=34397",
+                        "woe:town=36880",
+                        "woe:town=39072",
+                        "woe:town=37149",
+                        "woe:town=36749",
+                        "woe:suburb=31092",
+                        "woe:town=11791",
+                        "woe:town=17953",
+                        "woe:town=21536",
+                        "woe:town=27397",
+                        "woe:town=11209",
+                        "woe:town=19055",
+                        "woe:town=33295",
+                        "woe:town=36612",
+                        "woe:town=19643",
+                        "woe:town=39188",
+                        "woe:suburb=33508",
+                        "woe:town=24595",
+                        "woe:town=32682",
+                        "woe:town=19649",
+                        "woe:town=25985",
+                        "woe:town=34560",
+                        "woe:town=39747",
+                        "woe:suburb=38594",
+                        "woe:town=11157",
+                        "woe:town=15405",
+                        "woe:town=19688",
+                        "woe:town=32485",
+                        "woe:town=40385"
+                    ],
+                    "woe:alias_Q": [
+                        {
+                            "name": "Londen",
+                            "lang": "DUT"
+                        },
+                        {
+                            "name": "Londres",
+                            "lang": "FRE"
+                        },
+                        {
+                            "name": "Londra",
+                            "lang": "ITA"
+                        },
+                        {
+                            "name": "Londres",
+                            "lang": "POR"
+                        },
+                        {
+                            "name": "Londres",
+                            "lang": "SPA"
+                        },
+                        {
+                            "name": "ロンドン",
+                            "lang": "JPN"
+                        },
+                        {
+                            "name": "Lontoo",
+                            "lang": "FIN"
+                        },
+                        {
+                            "name": "런던",
+                            "lang": "KOR"
+                        },
+                        {
+                            "name": "Londýn",
+                            "lang": "CZE"
+                        },
+                        {
+                            "name": "Londyn",
+                            "lang": "POL"
+                        },
+                        {
+                            "name": "Londra",
+                            "lang": "RUM"
+                        },
+                        {
+                            "name": "倫敦",
+                            "lang": "CHI"
+                        }
+                    ],
+                    "woe:alias_V": [
+                        {
+                            "name": "Lontooseen",
+                            "lang": "FIN"
+                        },
+                        {
+                            "name": "Lontoosta",
+                            "lang": "FIN"
+                        },
+                        {
+                            "name": "Lontoossa",
+                            "lang": "FIN"
+                        },
+                        {
+                            "name": "Lontoon kautta",
+                            "lang": "FIN"
+                        },
+                        {
+                            "name": "لندن",
+                            "lang": "ARA"
+                        },
+                        {
+                            "name": "Лондон",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "Λονδινο",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "लंदन",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "लदन",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "Lundúnir",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "Lundunir",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "런던",
+                            "lang": "KOR"
+                        },
+                        {
+                            "name": "Londonas",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "ลอนดอน",
+                            "lang": "UNK"
+                        },
+                        {
+                            "name": "伦敦",
+                            "lang": "CHI"
+                        },
+                        {
+                            "name": "LON",
+                            "lang": "ENG"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

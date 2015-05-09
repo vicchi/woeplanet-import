@@ -380,7 +380,7 @@ class GeoPlanetImporter {
 												'type' => 'long'
 											),
 											'woe:adjacent' => array(
-												'type' => 'long'
+												'type' => 'string'
 											),
 											'alias_Q' => array(
 												'properties' => array(
@@ -450,12 +450,34 @@ class GeoPlanetImporter {
 							),
 							'woe:state' => array(
 								'type' => 'long'
+							),
+							'history' => array(
+								'properties' => array(
+									'source' => array(
+										'type' => 'string'
+									),
+									'timestamp' => array(
+										'type' => 'long'
+									)
+								)
 							)
 						)
 					),
 					self::PLACETYPES_TYPE => array(
 						'_timestamp' => array(
 							'enabled' => true
+						),
+						'properties' => array(
+							'history' => array(
+								'properties' => array(
+									'source' => array(
+										'type' => 'string'
+									),
+									'timestamp' => array(
+										'type' => 'long'
+									)
+								)
+							)
 						)
 					)
 				)
@@ -739,27 +761,18 @@ class GeoPlanetImporter {
 				$row++;
 				$this->check_raw_changes($row, $data);
 
+				// Trap empty or malformed change lines (v7.8.1 are you feeling guilty?)
+				if ((intval($data['Woe_id']) == 0) || (intval($data['Rep_id']) == 0)) {
+					error_log("Invalid or empty change values near line $row");
+					continue;
+				}
+
 				// Hey, let's be consistent in our column naming convention ... WTF
 				$old_woeid = $data['Woe_id'];
 				$new_woeid = $data['Rep_id'];
 
 				$old = $this->get_by_woeid($old_woeid);
 				$new = $this->get_by_woeid($new_woeid);
-
-				if ($old['found']) {
-					$params = array(
-						'body' => $old['_source'],
-						'index' => self::INDEX,
-						'type' => self::PLACES_TYPE,
-						'id' => $old_woeid
-					);
-					$params['body']['features'][0]['properties']['woe:superseded'] = $new_woeid;
-
-					$this->es->index($params);
-				}
-				else {
-					$logs[] = "WTF ... no document found for old WOEID $new_woeid";
-				}
 
 				if ($new['found']) {
 					$supersedes = array();
@@ -775,23 +788,73 @@ class GeoPlanetImporter {
 							'type' => self::PLACES_TYPE,
 							'id' => $new_woeid
 						);
-						$params['body']['features'][0]['properties']['woe:supersedes'] = $superseded;
+						$params['body']['features'][0]['properties']['woe:supersedes'] = $supersedes;
 
 						$this->es->index($params);
 					}
 				}
 
 				else {
-					$logs[] = "WTF ... no record found for new WOEID $new_woeid";
+					$params = array(
+						'body' => array(
+							'type' => 'FeatureCollection',
+							'features' => array(
+								array(
+									'type' => 'Feature',
+									'id' => (int) $new_woeid,
+									'geometry' => array(
+										'type' => 'Point',
+										'coordinates' => array(0, 0)
+									),
+									'properties' => array(
+										'woe:id' => (int) $new_woeid,
+										'iso' => '',
+										'name' => '',
+										'lang' => '',
+										'woe:type' => (int) 0,
+										'woe:placetype' => '',
+										'woe:parent' => (int) 0,
+										'history' => $this->history
+									)
+								)
+							)
+						),
+						'index' => self::INDEX,
+						'type' => self::PLACES_TYPE,
+						'id' => (int) $new_woeid
+					);
+					$this->es->index($params);
+					error_log("WTF ... no record found for new WOEID $new_woeid, creating empty placeholder");
+					$new = $this->get_by_woeid($new_woeid);
+				}
+
+				if ($old['found']) {
+					$params = array(
+						'body' => $old['_source'],
+						'index' => self::INDEX,
+						'type' => self::PLACES_TYPE,
+						'id' => $old_woeid
+					);
+					$params['body']['features'][0]['properties']['woe:superseded'] = $new_woeid;
+
+					$this->es->index($params);
+				}
+				else {
+					$params = array(
+						'body' => $new['_source'],
+						'index' => self::INDEX,
+						'type' => self::PLACES_TYPE,
+						'id' => $old_woeid
+					);
+					$params['body']['features'][0]['properties']['woe:superseded'] = $new_woeid;
+					$params['body']['features'][0]['properties']['history'] = $this->history;
+
+					$this->es->index($params);
+
+					error_log("Oops ... no document found for old WOEID $old_woeid; back-filled with $new_woeid");
 				}
 
 				$this->show_status($row, $total);
-			}
-
-			if (count($logs) > 0) {
-				foreach ($logs as $log) {
-					$this->log($log);
-				}
 			}
 		}
 
@@ -807,10 +870,17 @@ class GeoPlanetImporter {
 	private function index_adjacencies() {
 		$this->elapsed('adjacencies');
 
+		$pre_cached = false;
 		if ($this->sqlite[self::ADJACENCIES_STAGE]['handle'] === NULL) {
-			$name = 'sqlite:' . $this->sqlite[self::ADJACENCIES_STAGE]['path'];
+			$file = $this->sqlite[self::ADJACENCIES_STAGE]['path'];
+			$name = 'sqlite:' . $file;
+			if (file_exists($file)) {
+				$this->logVerbose("Cache $file already exists, using this cache for adjacencies");
+				$pre_cached = true;
+			}
 			$this->sqlite[self::ADJACENCIES_STAGE]['handle'] = new PDO($name);
 		}
+
 		$db = $this->sqlite[self::ADJACENCIES_STAGE]['handle'];
 		$tsv = new GeoPlanetDataReader();
 
@@ -821,37 +891,39 @@ class GeoPlanetImporter {
 			$this->logVerbose('Purging table "geoplanet_adjacencies" from cache');
 			$drop = "DROP TABLE geoplanet_adjacencies";
 			$db->exec($drop);
+			$pre_cached = false;
 		}
 
-		$this->log("Caching $total adjacencies");
+		if (!$pre_cached) {
+			$this->log("Caching $total adjacencies");
 
-		$setup = "CREATE TABLE geoplanet_adjacencies (
-			woeid INTEGER,
-			neighbour INTEGER
-		)";
-		$db->exec($setup);
+			$setup = "CREATE TABLE geoplanet_adjacencies (
+				woeid INTEGER,
+				neighbour INTEGER
+			)";
+			$db->exec($setup);
 
-		$setup = "CREATE INDEX adjacencies_by_woeid ON geoplanet_adjacencies (woeid)";
-		$db->exec($setup);
+			$setup = "CREATE INDEX adjacencies_by_woeid ON geoplanet_adjacencies (woeid)";
+			$db->exec($setup);
 
-		$row = 0;
-		$insert = "INSERT INTO geoplanet_adjacencies(woeid, neighbour) VALUES(:woeid,:neighbour)";
-		$statement = $db->prepare($insert);
+			$row = 0;
+			$insert = "INSERT INTO geoplanet_adjacencies(woeid, neighbour) VALUES(:woeid,:neighbour)";
+			$statement = $db->prepare($insert);
 
-		while (($data = $tsv->get()) !== false) {
-			$row++;
-			$this->check_raw_adjacencies($row, $data);
+			while (($data = $tsv->get()) !== false) {
+				$row++;
+				$this->check_raw_adjacencies($row, $data);
 
-			$statement->bindParam(':woeid', $data['Place_WOE_ID']);
-			$statement->bindParam(':neighbour', $data['Neighbour_WOE_ID']);
+				$statement->bindParam(':woeid', $data['Place_WOE_ID']);
+				$statement->bindParam(':neighbour', $data['Neighbour_WOE_ID']);
 
-			$statement->execute();
+				$statement->execute();
 
-			$this->show_status($row, $total);
+				$this->show_status($row, $total);
+			}
+
+			$this->logVerbose("\nCached $row of $total adjacencies");
 		}
-
-		$this->logVerbose("\nCached $row of $total adjacencies");
-
 		$ids = array();
 
 		$select = "SELECT COUNT(DISTINCT woeid) FROM geoplanet_adjacencies";
@@ -878,7 +950,11 @@ class GeoPlanetImporter {
 			$adjacent = array();
 
 			while (($neighbour = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
-				$adjacent[] = $neighbour['neighbour'];
+				$doc = $this->get_by_woeid($neighbour['neighbour']);
+				$placecode = $doc['_source']['features'][0]['properties']['woe:type'];
+				$placeentry = $this->placetypes->get_by_id($placecode);
+				$placetag = $placeentry['placetype']['tag'];
+				$adjacent[] = sprintf('woe:%s=%s', $placetag, $neighbour['neighbour']);
 			}
 
 			$doc = $this->get_by_woeid($adj['woeid']);
@@ -1076,6 +1152,7 @@ class GeoPlanetImporter {
 				$resp = $this->es->indices()->refresh($refresh);
 			}
 
+			$this->log("Indexing $total admins");
 			$row = 0;
 
 			while(($data = $tsv->get()) !== false) {
@@ -1086,17 +1163,20 @@ class GeoPlanetImporter {
 					'body' => array(
 						'woe:id' => $data['WOE_ID'],
 						'iso' => $data['ISO'],
-						'woe:state' => $data['State'],
-						'woe:county' => $data['County'],
-						'woe:localadmin' => $data['Local_Admin'],
-						'woe:country' => $data['Country'],
-						'woe:continent' => $data['Continent']
+						'woe:state' => (empty($data['State']) ? 0 : $data['State']),
+						'woe:county' => (empty($data['County']) ? 0 : $data['County']),
+						'woe:localadmin' => (empty($data['Local_Admin']) ? 0 : $data['Local_Admin']),
+						'woe:country' => (empty($data['Country']) ? 0 : $data['Country']),
+						'woe:continent' => (empty($data['Continent']) ? 0 : $data['Continent']),
+						'history' => $this->history
 					),
 					'index' => self::INDEX,
 					'type' => self::ADMINS_TYPE,
 					'id' => $data['WOE_ID']
 				);
+				error_log(var_export($params, true));
 				$this->es->index($params);
+				exit;
 				$this->show_status($row, $total);
 			}
 		}
@@ -1163,25 +1243,31 @@ class GeoPlanetImporter {
 		$this->log("Running test code");
 		$this->elapsed('test');
 
-		$woeid = 44418;
+		$tsv = new GeoPlanetDataReader();
+		$tsv->open($this->files[$this->changes]);
+		$total = $tsv->size();
 
-		$entry = $this->get_by_woeid($woeid);
-		$this->log('entry dump');
-		$this->log(var_export($entry, true));
+		$this->log("Indexing $total changes");
+		$row = 0;
 
-		$source = &$entry['_source'];
-		$feature = &$source['features'][0];
+		while (($data = $tsv->get()) !== false) {
+			$row++;
+			$this->check_raw_changes($row, $data);
 
-		$this->log('feature dump');
-		$this->log(var_export($feature, true));
+			if ((intval($data['Woe_id']) == 0) || (intval($data['Rep_id']) == 0)) {
+				error_log("Invalid or empty change values near line $row");
+				continue;
+			}
 
-		$feature['properties']['woe:adjacent'] = array(1, 2, 3, 4);
+			var_dump($data);
 
-		$this->log('updated dump');
-		$this->log(var_export($feature, true));
+			// Hey, let's be consistent in our column naming convention ... WTF
+			$old_woeid = $data['Woe_id'];
+			$new_woeid = $data['Rep_id'];
 
-		$this->log('updated entry');
-		$this->log(var_export($entry, true));
+			if ($row >= 5)
+				exit;
+		}
 
 		$elapsed = $this->seconds_to_time($this->elapsed('test'));
 		$this->log("Completed test run in $elapsed");
@@ -1353,7 +1439,6 @@ class GeoPlanetImporter {
 
 		if (!empty($missing)) {
 			$fields = implode(',',$missing);
-			var_dump($data);
 			throw new Exception("$file:$row - Missing fields $fields");
 		}
 	}

@@ -1,0 +1,64 @@
+{
+	"woeid": "12590629",
+	"iso": "AX",
+	"name": "Brändö",
+	"lang":"SWE",
+	"type": "State",
+	"parent": "12577865",
+	"centroid": {
+		"lat": 0,
+		"lon": 0
+	},
+	"bbox": {
+		"sw":{
+			"lat": 0,
+			"lon": 0
+		},
+		"ne": {
+			"lat": 0,
+			"lon": 0
+		}
+	},
+	"history": [
+		{
+			"source": "geoplanet_data 7.3.1",
+			"timestamp": 1401774297
+		}
+	],
+	"woeid_adjacent": [
+		"12590642",
+		"12590637",
+		"12590642",
+		"12590637",
+		"12590642",
+		"12590637",
+		"12590642",
+		"12590637"
+	],
+	"alias_S": [
+		{
+			"name": "Brando",
+			"lang": "SWE"
+		},
+		{
+			"name": "Braendoe",
+			"lang": "SWE"
+		},
+		{
+			"name": "Brando",
+			"lang": "SWE"
+		},
+		{
+			"name": "Braendoe",
+			"lang": "SWE"
+		},
+		{
+			"name": "Brando",
+			"lang": "SWE"
+		},
+		{
+			"name": "Braendoe",
+			"lang": "SWE"
+		}
+	]
+}

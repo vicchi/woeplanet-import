@@ -1,0 +1,113 @@
+{
+  "woeplanet" : {
+    "mappings" : {
+      "places" : {
+        "properties" : {
+          "history" : {
+            "properties" : {
+              "source" : {
+                "type" : "string"
+              },
+              "timestamp" : {
+                "type" : "long"
+              }
+            }
+          },
+          "iso" : {
+            "type" : "string"
+          },
+          "lang" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "woe:adjacent" : {
+            "type" : "string"
+          },
+          "woe:alias_ARA_V" : {
+            "type" : "string"
+          },
+          "woe:alias_CHI_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_CHI_V" : {
+            "type" : "string"
+          },
+          "woe:alias_CZE_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_DUT_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_ENG_V" : {
+            "type" : "string"
+          },
+          "woe:alias_FIN_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_FIN_V" : {
+            "type" : "string"
+          },
+          "woe:alias_FRE_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_ITA_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_JPN_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_KOR_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_KOR_V" : {
+            "type" : "string"
+          },
+          "woe:alias_POL_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_POR_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_RUM_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_SPA_Q" : {
+            "type" : "string"
+          },
+          "woe:alias_UNK_V" : {
+            "type" : "string"
+          },
+          "woe:bbox" : {
+            "type" : "double"
+          },
+          "woe:bounds" : {
+            "type" : "double"
+          },
+          "woe:centroid" : {
+            "type" : "double"
+          },
+          "woe:id" : {
+            "type" : "long"
+          },
+          "woe:parent" : {
+            "type" : "long"
+          },
+          "woe:placetype" : {
+            "type" : "long"
+          },
+          "woe:placetypename" : {
+            "type" : "string"
+          },
+          "woe:superceded" : {
+            "type" : "long"
+          },
+          "woe:supercedes" : {
+            "type" : "long"
+          }
+        }
+      }
+    }
+  }
+}

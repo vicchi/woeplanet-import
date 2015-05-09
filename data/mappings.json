@@ -1,0 +1,68 @@
+{
+    "woeplanet": {
+        "mappings": {
+            "places": {
+                "properties": {
+                    "features": {
+                        "properties": {
+                            "bbox": {
+                                "type": "string"
+                            },
+                            "geometry": {
+                                "properties": {
+                                    "coordinates": {
+                                        "type": "string"
+                                    },
+                                    "type": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "properties": {
+                                "properties": {
+                                    "envelope": {
+                                        "type": "string"
+                                    },
+                                    "history": {
+                                        "properties": {
+                                            "source": {
+                                                "type": "string"
+                                            },
+                                            "timestamp": {
+                                                "type": "long"
+                                            }
+                                        }
+                                    },
+                                    "iso": {
+                                        "type": "string"
+                                    },
+                                    "lang": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "parent": {
+                                        "type": "string"
+                                    },
+                                    "type": {
+                                        "type": "long"
+                                    }
+                                }
+                            },
+                            "type": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

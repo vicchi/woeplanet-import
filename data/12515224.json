@@ -1,0 +1,52 @@
+{
+    "_index": "woeplanet",
+    "_type": "places",
+    "_id": "12515224",
+    "_version": 1,
+    "found": true,
+    "_source": {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "12515224",
+                "bbox": [
+                    "0.0",
+                    "0.0",
+                    "0.0",
+                    "0.0"
+                ],
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [
+                        "114.278099",
+                        "11.0433"
+                    ]
+                },
+                "properties": {
+                    "iso": "XS",
+                    "name": "Pagasa Airport",
+                    "lang": "ENG",
+                    "type": 14,
+                    "parent": "23424921",
+                    "envelope": [
+                        [
+                            "0.0",
+                            "0.0"
+                        ],
+                        [
+                            "0.0",
+                            "0.0"
+                        ]
+                    ],
+                    "history": [
+                        {
+                            "source": "geoplanet_data 7.10.0",
+                            "timestamp": 1402508462
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
