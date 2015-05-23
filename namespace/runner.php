@@ -3,67 +3,77 @@
 namespace Woeplanet;
 
 abstract class Runner {
-	const INDEX = "woeplanet";
+	const DATABASE = "woeplanet";
 
-	const PLACES_TYPE = "places";
-	const ADMINS_TYPE = "admins";
-	const PLACETYPES_TYPE = "placetype";
-	const META_TYPE = 'meta';
+	const PLACES_COLLECTION = "places";
+	const ADMINS_COLLECTION = "admins";
+	const PLACETYPES_COLLECTION = "placetypes";
+	const META_COLLECTION = 'meta';
 
 	protected $verbose;
-	protected $elasticsearch;
-	protected $es;
+	protected $server;
+	protected $client;
+	protected $db;
+	protected $collections;
 
-	public function __construct($elasticsearch, $verbose=false) {
-		$this->elasticsearch = $elasticsearch;
+	public function __construct($server, $verbose=false) {
+		$this->server = $server;
 		$this->verbose = $verbose;
+		$this->client = new \MongoClient($server);
 
-		$params = array(
-			'hosts' => array($this->elasticsearch)
-		);
-		$this->es =new \Elasticsearch\Client($params);
+		$this->db = $this->client->selectDB(self::DATABASE);
+		$this->collections = array();
+		$this->collections[self::PLACES_COLLECTION] = $this->db->selectCollection(self::PLACES_COLLECTION);
+		$this->collections[self::ADMINS_COLLECTION] = $this->db->selectCollection(self::ADMINS_COLLECTION);
+		$this->collections[self::PLACETYPES_COLLECTION] = $this->db->selectCollection(self::PLACETYPES_COLLECTION);
+		$this->collections[self::META_COLLECTION] = $this->db->selectCollection(self::META_COLLECTION);
 	}
 
 	abstract public function run();
 
 	protected function get_max_woeid() {
-		$params = array(
-			'index' => self::INDEX,
-			'type' => self::META_TYPE,
-			'id' => 1
-		);
-		$doc = $this->es->get($params);
-		if ($doc['found']) {
-			return (int)$doc['_source']['max_woeid'];
+		$query = array('_id' => 1);
+		$meta = $this->collections[self::META_COLLECTION]->findOne($query);
+		if ($meta !== NULL) {
+			return (int)$meta['max_woeid'];
 		}
 
 		throw new Exception('Cannot find max_woeid type');
 	}
 
 	protected function get_woeid($woeid) {
-		$params = array(
-			'index' => self::INDEX,
-			'type' => self::PLACES_TYPE,
-			'id' => $woeid,
-			'ignore' => 404
+		// error_log('get_woeid: ' . $woeid);
+		$query = array(
+			'_id' => (int)$woeid
+			// '_id' => new \MongoId($woeid)
 		);
-		$doc = $this->es->get($params);
-		if (is_string($doc)) {
-			$assoc = true;
-			$doc = json_decode($doc, $assoc);
-		}
 
-		return $doc;
+		// $doc = $this->collections[self::PLACES_COLLECTION]->findOne($query);
+		// error_log(var_export($doc, true));
+		return $this->collections[self::PLACES_COLLECTION]->findOne($query);
+		// $params = array(
+		// 	'index' => self::DATABASE,
+		// 	'type' => self::PLACES_COLLECTION,
+		// 	'id' => $woeid,
+		// 	'ignore' => 404
+		// );
+		// $doc = $this->client->get($params);
+		// if (is_string($doc)) {
+		// 	$assoc = true;
+		// 	$doc = json_decode($doc, $assoc);
+		// }
+		//
+		// return $doc;
 	}
 
 	protected function get_admin($woeid) {
 		$params = array(
-			'index' => self::INDEX,
-			'type' => self::ADMINS_TYPE,
+			'index' => self::DATABASE,
+			'type' => self::ADMINS_COLLECTION,
 			'id' => $woeid,
 			'ignore' => 404
 		);
-		$doc = $this->es->get($params);
+		$doc = $this->client->get($params);
 		if (is_string($doc)) {
 			$assoc = true;
 			$doc = json_decode($doc, $assoc);
@@ -73,33 +83,40 @@ abstract class Runner {
 	}
 
 	protected function get_meta() {
-		$params = array(
-			'index' => self::INDEX,
-			'type' => self::META_TYPE,
-			'id' => 1
+		$query = array(
+			'_id' => 1
 		);
-		$doc = $this->es->get($params);
-		if (is_string($doc)) {
-			$assoc = true;
-			$doc = json_decode($doc, $assoc);
-		}
-
-		return $doc;
+		return $this->collections[self::META_COLLECTION]->findOne($query);
+		//
+		// $params = array(
+		// 	'index' => self::DATABASE,
+		// 	'type' => self::META_COLLECTION,
+		// 	'id' => 1
+		// );
+		// $doc = $this->client->get($params);
+		// if (is_string($doc)) {
+		// 	$assoc = true;
+		// 	$doc = json_decode($doc, $assoc);
+		// }
+		//
+		// return $doc;
 	}
 
 	protected function refresh_meta($woeid) {
 		$meta = $this->get_meta();
-		if ((int)$woeid > (int)$meta['_source']['max_woeid']) {
-			$params = array(
-				'body' => array(
-					'max_woeid' => (int)$woeid
-				),
-				'index' => self::INDEX,
-				'type' => self::META_TYPE,
-				'id' => 1,
-				'refresh' => true
+
+		if (NULL === $meta) {
+			$meta = array(
+				'max_woeid' => (int)$woeid
 			);
-			$this->es->index($params);
+			$this->collections[self::META_COLLECTION]->insert($meta);
+		}
+
+		else if ((int)$woeid > (int)$meta['max_woeid']) {
+			$criteria = array('_id' => 1);
+			$meta['max_woeid'] = (int)$woeid;
+			$options = array('upsert' => true);
+			$this->collections[self::META_COLLECTION]->update($criteria, $params, $options);
 		}
 	}
 

@@ -5,8 +5,10 @@ require_once 'runner.php';
 require_once 'timer.php';
 require_once 'placetypes.php';
 require_once 'reader.php';
+require_once 'geometry.php';
+// require_once 'geoPHP/geoPHP.inc';
 
-require_once 'vendor/autoload.php';
+// require_once 'vendor/autoload.php';
 
 class GeoPlanetImport extends Woeplanet\Runner {
     const RUN_STAGE = 'run';
@@ -59,10 +61,11 @@ class GeoPlanetImport extends Woeplanet\Runner {
     private $path = NULL;
     //private $instance = 'http://localhost:9200';
     private $stage = NULL;
+    private $snapshot = NULL;
     private $source;
     private $version;
     private $timestamp;
-    private $history;
+    private $history = array();
 
     //private $es;
     private $sqlite;
@@ -82,19 +85,25 @@ class GeoPlanetImport extends Woeplanet\Runner {
     private $snapshot_repo_name;
     private $snapshot_repo_dir;
 
-    public function __construct($instance, $path, $verbose, $purge, $stage=NULL) {
+    public function __construct($server, $path, $verbose, $purge, $stage=NULL, $snapshot=NULL) {
+        parent::__construct($server, $verbose);
+
         $this->placetypes = new \Woeplanet\PlaceTypes();
 
-        $this->instance = $instance;
+        // $this->instance = $instance;
         $this->path = $path;
-        $this->verbose = $verbose;
+        // $this->verbose = $verbose;
         $this->purge = $purge;
 
         if ($stage !== NULL) {
             $stage = strtolower($stage);
         }
         $this->stage = $stage;
-        $this->es = new \Elasticsearch\Client();
+
+        if ($snapshot !== NULL) {
+            $this->snapshot = $snapshot;
+        }
+        // $this->es = new \Elasticsearch\Client();
         $this->sqlite = array();
 
         $this->stages = array(
@@ -117,11 +126,15 @@ class GeoPlanetImport extends Woeplanet\Runner {
             $this->source = 'GeoPlanet';
             $this->version = $match[2];
             $this->timestamp = time();
-            $this->history = array(
-                array(
-                    'source' => sprintf('%s %s', $this->source, $this->version),
-                    'timestamp' => (int) $this->timestamp
-                )
+            // $this->history = array(
+            //     array(
+            //         'source' => sprintf('%s %s', $this->source, $this->version),
+            //         'timestamp' => (int) $this->timestamp
+            //     )
+            // );
+            $this->history[] = array(
+                'source' => sprintf('%s %s', $this->source, $this->version),
+                'timestamp' => (int) $this->timestamp
             );
         }
 
@@ -153,8 +166,8 @@ class GeoPlanetImport extends Woeplanet\Runner {
         }
 
         $this->timer = new Woeplanet\Timer($this->stages);
-        $this->snapshot_repo_dir = getcwd() . DIRECTORY_SEPARATOR . self::INDEX . '-snapshots';
-        $this->snapshot_repo_name = self::INDEX . '-progress';
+        $this->snapshot_repo_dir = getcwd() . DIRECTORY_SEPARATOR . self::DATABASE . '-snapshots';
+        $this->snapshot_repo_name = self::DATABASE . '-progress';
 
         foreach ($this->stages as $stage) {
             $path= 'geoplanet_' . $stage . '_' . $this->version . '.sqlite3';
@@ -185,6 +198,7 @@ class GeoPlanetImport extends Woeplanet\Runner {
                     $this->timer->elapsed($stage);
 
                     $func = "index_$stage";
+                    $this->stage = $stage;
                     $this->$func();
 
                     $elapsed = $this->timer->seconds_to_time($this->timer->elapsed($stage));
@@ -198,90 +212,90 @@ class GeoPlanetImport extends Woeplanet\Runner {
     }
 
     private function index_setup() {
-        $params = array(
-            'index' => self::INDEX
-        );
-
-        $this->logVerbose('Checking index ' . self::INDEX);
-        if ($this->es->indices()->exists($params)) {
-            $this->logVerbose('Index ' . self::INDEX . ' exists, skipping index and mappings creation');
-        }
-
-        else {
-            $body = array(
-                'mappings' =>array(
-                    self::PLACES_TYPE => array(
-                        '_timestamp' => array(
-                            'enabled' => true
-                        ),
-                        'properties' => array(
-                            'woe:centroid' => array(
-                                'type' => 'geo_point'
-                            ),
-                            'woe:bounds' => array(
-                                'type' => 'geo_shape'
-                            )
-                        )
-                    ),
-                    self::PLACETYPES_TYPE => array(
-                        '_timestamp' => array(
-                            'enabled' => true
-                        ),
-                        'properties' => array(
-                            'history' => array(
-                                'properties' => array(
-                                    'source' => array(
-                                        'type' => 'string'
-                                    ),
-                                    'timestamp' => array(
-                                        'type' => 'long'
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    self::ADMINS_TYPE => array(
-                        '_timestamp' => array(
-                            'enabled' => true
-                        ),
-                        'properties' => array(
-                            'woe:id' => array(
-                                'type' => 'long'
-                            ),
-                            'woe:continent' => array(
-                                'type' => 'long'
-                            ),
-                            'woe:country' => array(
-                                'type' => 'long'
-                            ),
-                            'woe:county' => array(
-                                'type' => 'long'
-                            ),
-                            'woe:local-admin' => array(
-                                'type' => 'long'
-                            ),
-                            'woe:state' => array(
-                                'type' => 'long'
-                            ),
-                            'history' => array(
-                                'properties' => array(
-                                    'source' => array(
-                                        'type' => 'string'
-                                    ),
-                                    'timestamp' => array(
-                                        'type' => 'long'
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            );
-
-            $params['body'] = $body;
-            $this->logVerbose('Creating index ' . self::INDEX . ' and mappings');
-            $this->es->indices()->create($params);
-        }
+        // $params = array(
+        //     'index' => self::DATABASE
+        // );
+        //
+        // $this->logVerbose('Checking index ' . self::DATABASE);
+        // if ($this->es->indices()->exists($params)) {
+        //     $this->logVerbose('Index ' . self::DATABASE . ' exists, skipping index and mappings creation');
+        // }
+        //
+        // else {
+        //     $body = array(
+        //         'mappings' =>array(
+        //             self::PLACES_TYPE => array(
+        //                 '_timestamp' => array(
+        //                     'enabled' => true
+        //                 ),
+        //                 'properties' => array(
+        //                     'woe:centroid' => array(
+        //                         'type' => 'geo_point'
+        //                     ),
+        //                     'woe:bounds' => array(
+        //                         'type' => 'geo_shape'
+        //                     )
+        //                 )
+        //             ),
+        //             self::PLACETYPES_TYPE => array(
+        //                 '_timestamp' => array(
+        //                     'enabled' => true
+        //                 ),
+        //                 'properties' => array(
+        //                     'history' => array(
+        //                         'properties' => array(
+        //                             'source' => array(
+        //                                 'type' => 'string'
+        //                             ),
+        //                             'timestamp' => array(
+        //                                 'type' => 'long'
+        //                             )
+        //                         )
+        //                     )
+        //                 )
+        //             ),
+        //             self::ADMINS_TYPE => array(
+        //                 '_timestamp' => array(
+        //                     'enabled' => true
+        //                 ),
+        //                 'properties' => array(
+        //                     'woe:id' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'woe:continent' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'woe:country' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'woe:county' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'woe:local-admin' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'woe:state' => array(
+        //                         'type' => 'long'
+        //                     ),
+        //                     'history' => array(
+        //                         'properties' => array(
+        //                             'source' => array(
+        //                                 'type' => 'string'
+        //                             ),
+        //                             'timestamp' => array(
+        //                                 'type' => 'long'
+        //                             )
+        //                         )
+        //                     )
+        //                 )
+        //             )
+        //         )
+        //     );
+        //
+        //     $params['body'] = $body;
+        //     $this->logVerbose('Creating index ' . self::DATABASE . ' and mappings');
+        //     $this->es->indices()->create($params);
+        // }
     }
 
     private function index_places() {
@@ -303,83 +317,160 @@ class GeoPlanetImport extends Woeplanet\Runner {
                 throw new Exception('Cannot find match for placetype ' . $data['PlaceType'] . ' for WOEID ' . $data['WOE_ID']);
             }
 
-            $params = array(
-                'body' => array(
-                    'woe:id' => $data['WOE_ID'],
-                    'iso' => $data['ISO'],
-                    'name' => $data['Name'],
-                    'lang' => $data['Language'],
-                    //'woe:centroid' => array(-0.12714, 51.506321),
-                    // 'woe:bbox' => array(
-                    //     array(-0.563, 51.261318),
-                    //     array(0.28036, 51.686031)
-                    // ),
-                    // 'woe:bounds' => array(
-                    //     'type' => 'Polygon',
-                    //     'coordinates' => array(
-                    //         array(
-                    //             array(-0.563, 51.261),
-                    //             array(-0.563, 51.686),
-                    //             array(0.28, 51.686),
-                    //             array(0.28, 51.261),
-                    //             array(-0.563, 51.261)
-                    //         )
-                    //     )
-                    // ),
-                    'woe:placetype' => (int)$placetype['placetype']['id'],
-                    'woe:placetypename' => $placetype['placetype']['name'],
-                    'woe:parent' => (int)$data['Parent_ID'],
-                    //'woe:supercedes' => 1234,
-                    //'woe:superceded' => 1234,
-                    'history' => $this->history
-                ),
-                'index' => self::INDEX,
-                'type' => self::PLACES_TYPE,
-                'id' => $data['WOE_ID']
+            $doc = array(
+                '_id' => (int)$data['WOE_ID'],
+                'woe:id' => (int)$data['WOE_ID'],
+                'iso' => $data['ISO'],
+                'name' => $data['Name'],
+                'lang' => $data['Language'],
+                //'woe:centroid' => array(-0.12714, 51.506321),
+                // 'woe:bbox' => array(
+                //     array(-0.563, 51.261318),
+                //     array(0.28036, 51.686031)
+                // ),
+                // 'woe:bounds' => array(
+                //     'type' => 'Polygon',
+                //     'coordinates' => array(
+                //         array(
+                //             array(-0.563, 51.261),
+                //             array(-0.563, 51.686),
+                //             array(0.28, 51.686),
+                //             array(0.28, 51.261),
+                //             array(-0.563, 51.261)
+                //         )
+                //     )
+                // ),
+                'woe:placetype' => (int)$placetype['placetype']['id'],
+                'woe:placetypename' => $placetype['placetype']['name'],
+                'woe:parent' => (int)$data['Parent_ID'],
+                //'woe:supercedes' => 1234,
+                //'woe:superceded' => 1234,
+                'history' => $this->history
+                // )
+                // 'index' => self::DATABASE,
+                // 'type' => self::PLACES_TYPE,
+                // 'id' => $data['WOE_ID']
             );
 
-            if ($old['found']) {
+            if (!empty($old)) {
                 $history = array();
-                if (isset($old['_source']['history'])) {
-                    $history[] = $old['_source']['history'];
+                if (isset($old['history'])) {
+                    $history = $old['history'];
                 }
-                $history[] = $this->history;
-                $params['body']['history']= $history;
+                $history[] = $this->history[0];
+                $doc['history']= $history;
 
-                if (isset($old['_source']['woe:supersedes'])) {
-                    $params['body']['woe:supersedes'] = $old['_source']['woe:supersedes'];
+                if (isset($old['woe:supersedes'])) {
+                    $doc['woe:supersedes'] = $old['woe:supersedes'];
                 }
 
-                if (isset($old['_source']['woe:superseded'])) {
-                    $params['body']['woe:superseded'] = $old['_source']['woe:superseded'];
+                if (isset($old['woe:superseded'])) {
+                    $doc['woe:superseded'] = $old['woe:superseded'];
                 }
             }
 
-            $this->es->index($params);
+            // $this->es->index($params);
+            $criteria = array('_id' => (int)$data['WOE_ID']);
+            $options = array('upsert' => true);
+            $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+
             $this->show_status($row, $total);
             if ($max_woeid <= $data['WOE_ID']) {
                 $max_woeid = $data['WOE_ID'];
             }
         }
 
-        $params = array(
-            'body' => array(
-                'max_woeid' => (int)$max_woeid
-            ),
-            'index' => self::INDEX,
-            'type' => self::META_TYPE,
-            'id' => 1,
-            'refresh' => true
-        );
-        $this->es->index($params);
 
-        $snapshot = $this->history[0]['source'] . ' places';
-        $this->create_snapshot($snapshot);
-        $this->log("\nFinished indexing $total places");
+        $criteria = array('_id' => 1);
+        $doc = array(
+            'max_woeid' => (int)$max_woeid
+        );
+        $options = array('upsert' => true);
+        $this->collections[self::META_COLLECTION]->update($criteria, $doc, $options);
+
+        $this->make_snapshot();
+        // $this->es->index($params);
+
+        // $snapshot = $this->history[0]['source'] . ' places';
+        // $this->create_snapshot($snapshot);
+        // $this->log("\nFinished indexing $total places");
     }
 
     private function index_coords() {
+        if (false !== array_key_exists($this->coords, $this->files)) {
+            $reader = new \Woeplanet\Reader();
+            $reader->open($this->files[$this->coords]);
+            $total = $reader->size();
+            $row = 0;
 
+            $this->log("Indexing $total coords");
+
+            while (($data = $reader->get()) !== false) {
+                $row++;
+                $this->check_raw_coords($row, $data);
+                // error_log(var_export($data, true));
+
+                $lat = $this->sanitize_coord($data['Lat']);
+                $lon = $this->sanitize_coord($data['Lon']);
+
+                $nelat = $this->sanitize_coord($data['NE_Lat']);
+                $nelon = $this->sanitize_coord($data['NE_Lon']);
+
+                $swlat = $this->sanitize_coord($data['SW_Lat']);
+                $swlon = $this->sanitize_coord($data['SW_Lon']);
+
+                $doc = $this->get_woeid($data['WOE_ID']);
+
+                $centroid = new \Woeplanet\Centroid($lon, $lat);
+                if (!$centroid->is_empty() && $centroid->is_valid()) {
+                    $doc['woe:centroid'] = $centroid->to_geojson();
+                }
+                else {
+                    error_log('Centroid sanity check failed for WOEID ' . $data['WOE_ID'] . ', skipping');
+                    error_log($centroid);
+                }
+
+                $bbox = new \Woeplanet\BoundingBox($swlon, $swlat, $nelon, $nelat);
+                if ($bbox->is_empty()) {
+                    error_log('Bounding box for WOEID ' . $data['WOE_ID'] . ', is empty skipping');
+                    error_log($bbox);
+                }
+                else if (!$bbox->is_valid()) {
+                    error_log('Bounding box for WOEID ' . $data['WOE_ID'] . ', is invalid skipping');
+                    error_log($bbox);
+                }
+
+                else {
+                    $doc['woe:bbox'] = $bbox->to_bbox();
+                    $doc['woe:bounds'] = $bbox->to_geojson();
+                    // error_log('Bounding box for WOEID ' . $data['WOE_ID'] . ' seems good');
+                    // error_log($bbox);
+                }
+
+                // else {
+                //     error_log('Empty Bounds');
+                // }
+                //
+                // error_log(var_export($doc, true));
+
+                $criteria = array('_id' => (int)$data['WOE_ID']);
+                $options = array('upsert' => true);
+                $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+
+                $this->show_status($row, $total);
+            }
+
+            $this->log("\nFinished indexing $total coords");
+            // $this->log("Defining geospatial indices");
+            //$this->collections[self::PLACES_COLLECTION]->createIndex(array('woe:centroid' => '2dsphere'));
+            // $this->log("Finished defining geospatial indices");
+
+            $this->make_snapshot();
+        }
+
+        else {
+            $this->log("No coords found for $this->coords; skipping");
+        }
     }
 
     private function index_changes() {
@@ -405,27 +496,34 @@ class GeoPlanetImport extends Woeplanet\Runner {
                 $old_woeid = $data['Woe_id'];
                 $new_woeid = $data['Rep_id'];
 
+                // error_log('WOEID ' . $old_woeid . ' is superceded by WOEID ' . $new_woeid);
                 $old = $this->get_woeid($old_woeid);
                 $new = $this->get_woeid($new_woeid);
+                // error_log($old !== NULL ? 'Found old WOEID ' : 'Could not find old WOEID ' . $old_woeid);
+                // error_log($old !== NULL ? 'Found new WOEID ' : 'Could not find new WOEID ' . $new_woeid);
 
-                if ($new['found']) {
+                if (NULL !== $new) {
+                    // error_log('Handling existing new WOEID ' . $new_woeid);
                     $supersedes = array();
-                    if (isset($new['body']['woe:supersedes'])) {
-                        $supersedes = $new['body']['woe:superseded'];
+                    if (isset($new['woe:supersedes'])) {
+                        $supersedes = $new['woe:supersedes'];
                     }
                     if (array_search($old_woeid, $supersedes) == false) {
                         $supersedes[] = $old_woeid;
 
                         // $params = array(
                         //     'body' => $new['_source'],
-                        //     'index' => self::INDEX,
+                        //     'index' => self::DATABASE,
                         //     'type' => self::PLACES_TYPE,
                         //     'id' => $new_woeid
                         // );
-                        $params = $this->make_placeholder_woeid($new_woeid, $new['_source']);
-                        $params['body']['woe:supersedes'] = $supersedes;
+                        // $params = $this->make_placeholder_woeid($new_woeid, $new);
+                        $new['woe:supersedes'] = $supersedes;
 
-                        $this->es->index($params);
+                        $criteria = array('_id' => (int)$new_woeid);
+                        $options = array('upsert' => true);
+                        $this->collections[self::PLACES_COLLECTION]->update($criteria, $new, $options);
+                        // $this->es->index($params);
                     }
                 }
 
@@ -435,50 +533,73 @@ class GeoPlanetImport extends Woeplanet\Runner {
                     //         'woe:id' => (int)$new_woeid,
                     //         'history' => $this->history
                     //     ),
-                    //     'index' => self::INDEX,
+                    //     'index' => self::DATABASE,
                     //     'type' => self::PLACES_TYPE,
                     //     'id' => (int)$new_woeid
                     // );
-                    $params = $this->make_placeholder_woeid($new_woeid);
-                    $this->es->index($params);
+
                     error_log("WTF ... no record found for new WOEID $new_woeid, creating empty placeholder");
+
+                    $doc = $this->make_placeholder_woeid($new_woeid);
+                    $doc['woe:supercedes'] = array($old_woeid);
+
+                    $criteria = array('_id' => (int)$new_woeid);
+                    $options = array('upsert' => true);
+                    $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+
+                    // $this->es->index($params);
                     $this->refresh_meta($new_woeid);
                     $new = $this->get_woeid($new_woeid);
                 }
 
-                if ($old['found']) {
-                    $params = array(
-                        'body' => (int)$old['_source'],
-                        'index' => self::INDEX,
-                        'type' => self::PLACES_TYPE,
-                        'id' => (int)$old_woeid
-                    );
-                    $params['body']['woe:superseded'] = $new_woeid;
+                if (NULL !== $old) {
+                    // $params = array(
+                    //     'body' => (int)$old['_source'],
+                    //     'index' => self::DATABASE,
+                    //     'type' => self::PLACES_TYPE,
+                    //     'id' => (int)$old_woeid
+                    // );
 
-                    $this->es->index($params);
+                    $doc = $old;
+                    $doc['woe:superseded'] = $new_woeid;
+
+                    $criteria = array('_id' => (int)$old_woeid);
+                    $options = array('upsert' => true);
+                    $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+                    // $this->es->index($params);
                 }
                 else {
                     // $params = array(
                     //     'body' => $new['_source'],
-                    //     'index' => self::INDEX,
+                    //     'index' => self::DATABASE,
                     //     'type' => self::PLACES_TYPE,
                     //     'id' => (int)$old_woeid
                     // );
-                    $params = $this->make_placeholder_woeid($old_woeid, $new['_source']);
-                    $params['body']['woe:superseded'] = $new_woeid;
-                    $params['body']['history'] = $this->history;
-
-                    $this->es->index($params);
-
                     error_log("Oops ... no document found for old WOEID $old_woeid; back-filled with $new_woeid");
+
+                    $doc = $this->make_placeholder_woeid($old_woeid, $new);
+                    $doc['woe:superseded'] = $new_woeid;
+                    $doc['history'] = $this->history;
+
+                    $criteria = array('_id' => (int)$old_woeid);
+                    $options = array('upsert' => true);
+                    $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+
+                    // $this->es->index($params);
+
                     $this->refresh_meta($new_woeid);
                 }
                 $this->show_status($row, $total);
             }
 
-            $snapshot = $this->history[0]['source'] . ' changes';
-            $this->create_snapshot($snapshot);
+            // $snapshot = $this->history[0]['source'] . ' changes';
+            // $this->create_snapshot($snapshot);
             $this->log("\nFinished indexing $total changes");
+
+            $this->make_snapshot();
+        }
+        else {
+            $this->log("No changes found for $this->changes; skipping");
         }
     }
 
@@ -556,11 +677,16 @@ class GeoPlanetImport extends Woeplanet\Runner {
             $adjacent = array();
 
             while (($neighbour = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+                // error_log('Looking for neighbour ' . $neighbour['neighbour']);
                 $doc = $this->get_woeid($neighbour['neighbour']);
-                if (!$doc['found']) {
-                    $params = $this->make_placeholder_woeid($neighbour['neighbour']);
+                if (NULL === $doc) {
+                    $doc = $this->make_placeholder_woeid($neighbour['neighbour']);
                     error_log("WTF ... no record found for neighbour WOEID " . $neighbour['neighbour'] . ", creating empty placeholder");
-                    $this->es->index($params);
+
+                    $criteria = array('_id' => (int)$neighbour['neighbour']);
+                    $options = array('upsert' => true);
+                    $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+                    // $this->es->index($params);
                     $doc = $this->get_woeid($neighbour['neighbour']);
                     // error_log('Neighbour WOEID ' . $neighbour['neighbour'] . '++');
                     // error_log(var_export($doc, true));
@@ -568,7 +694,8 @@ class GeoPlanetImport extends Woeplanet\Runner {
                     $this->refresh_meta($neighbour['neighbour']);
                 }
 
-                $placecode = $doc['_source']['woe:placetype'];
+                // error_log(var_export($doc, true));
+                $placecode = $doc['woe:placetype'];
                 $placeentry = $this->placetypes->get_by_id($placecode);
                 if (!$placeentry['found']) {
                     throw new Exception('Cannot find match for placetype id ' . $placecode . ' for WOEID ' . $neighbour['neighbour']);
@@ -580,10 +707,14 @@ class GeoPlanetImport extends Woeplanet\Runner {
 
             $doc = $this->get_woeid($adj['woeid']);
 
-            if (!$doc['found']) {
-                $params = $this->make_placeholder_woeid($adj['woeid']);
+            if (NULL === $doc) {
+                $doc = $this->make_placeholder_woeid($adj['woeid']);
                 error_log("WTF ... no record found for adjacent source WOEID " . $adj['woeid'] . ", creating empty placeholder");
-                $this->es->index($params);
+
+                $criteria = array('_id' => (int)$adj['woeid']);
+                $options = array('upsert' => true);
+                $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+                // $this->es->index($params);
                 $doc = $this->get_woeid($adj['woeid']);
 
                 // error_log('Adjacent WOEID ' . $neighbour['neighbour'] . '++');
@@ -592,22 +723,29 @@ class GeoPlanetImport extends Woeplanet\Runner {
                 $this->refresh_meta($adj['woeid']);
             }
 
-            $params = array(
-                'body' => $doc['_source'],
-                'index' => self::INDEX,
-                'type' => self::PLACES_TYPE,
-                'id' => $adj['woeid']
-                //'refresh' => true
-            );
-            $params['body']['woe:adjacent'] = $adjacent;
+            // $params = array(
+            //     'body' => $doc['_source'],
+            //     'index' => self::DATABASE,
+            //     'type' => self::PLACES_TYPE,
+            //     'id' => $adj['woeid']
+            //     //'refresh' => true
+            // );
 
-            $this->es->index($params);
+            // $params = $doc;
+            $doc['woe:adjacent'] = $adjacent;
+
+            $criteria = array('_id' => $doc['_id']);
+            $options = array('upsert' => true);
+            $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+            // $this->es->index($params);
             $this->show_status($row, $count);
         }
 
-        $snapshot = $this->history[0]['source'] . ' adjacencies';
-        $this->create_snapshot($snapshot);
+        // $snapshot = $this->history[0]['source'] . ' adjacencies';
+        // $this->create_snapshot($snapshot);
         $this->log("\nFinished indexing $row of $count adjacencies");
+
+        $this->make_snapshot();
     }
 
     private function index_aliases() {
@@ -695,46 +833,131 @@ class GeoPlanetImport extends Woeplanet\Runner {
             $statement->execute();
 
             $aliases = array();
+            $q = array();
+            $v = array();
+            $a = array();
+            $s = array();
+
             while (($alias = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+                // Name Types: https://developer.yahoo.com/forum/GeoPlanet-General-Discussion/what-39-s-name-type-field-in-geoplanet-aliases-7-2-tsv/1245492689000-1cda9941-6417-3875-9590-c3dc4335c663/
+                // And also: http://www.aaronland.info/weblog/2009/12/21/redacted/#woelr
+                // P (preferred name):
+                // Q (qualified name): this name is the preferred name for the place in a language different than that used by residents of the place (e.g. "紐約" for New York)
+                // V (variation): this name is a well-known (but unofficial) name for the place (e.g. "New York City" for New York)
+                // A (abbreviation): this name is a abbreviation or code for the place (e.g. "NYC" for New York)
+                // S (synonym): this name is a colloquial name for the place (e.g. "Big Apple" for New York)
+
                 $woeid = $alias['woeid'];
                 $name = $alias['name'];
                 $type = $alias['type'];
                 $lang = $alias['lang'];
                 // woe:alias_UNK_V
-                $key = sprintf('woe:alias_%s_%s', $lang, $type);
+                // $key = sprintf('woe:alias_%s_%s', $lang, $type);
+                //
+                // $names = array();
+                // if (array_key_exists($key, $aliases)) {
+                //     $names = $aliases[$key];
+                // }
+                //
+                // if (!in_array($name, $names, true)) {
+                //     $names[] = $name;
+                // }
+                // $aliases[$key] = $names;
 
-                $names = array();
-                if (array_key_exists($key, $aliases)) {
-                    $names = $aliases[$key];
+                $element = array('lang' => $lang, 'name' => $name);
+                switch ($type) {
+                    case 'Q': $q[] = $element; break;
+                    case 'V': $v[] = $element; break;
+                    case 'A': $a[] = $element; break;
+                    case 'S': $s[] = $element; break;
                 }
-
-                if (!in_array($name, $names, true)) {
-                    $names[] = $name;
-                }
-                $aliases[$key] = $names;
             }
 
             $doc = $this->get_woeid($id);
-            $params = array(
-                'body' => $doc['_source'],
-                'index' => self::INDEX,
-                'type' => self::PLACES_TYPE,
-                'id' => $id
-            );
+            // $params = array(
+            //     'body' => $doc['_source'],
+            //     'index' => self::DATABASE,
+            //     'type' => self::PLACES_TYPE,
+            //     'id' => $id
+            // );
 
-
-            foreach ($aliases as $key => $value) {
-                $params['body'][$key] = $value;
+            if (!empty($q)) {
+                $doc['woe:alias_q'] = $q;
+            }
+            if (!empty($v)) {
+                $doc['woe:alias_v'] = $q;
+            }
+            if (!empty($a)) {
+                $doc['woe:alias_a'] = $q;
+            }
+            if (!empty($s)) {
+                $doc['woe:alias_s'] = $q;
             }
 
-            $this->es->index($params);
+            // foreach ($aliases as $key => $value) {
+            //     $doc[$key] = $value;
+            // }
+
+            // error_log(var_export($doc, true));
+            $criteria = array('_id' => (int)$id);
+            $options = array('upsert' => true);
+            $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+            // $this->es->index($params);
             $this->show_status($row, $total);
         }
 
-        $snapshot = $this->history[0]['source'] . ' aliases';
-        $this->create_snapshot($snapshot);
+        // $snapshot = $this->history[0]['source'] . ' aliases';
+        // $this->create_snapshot($snapshot);
         $this->log("\nFinished indexing $total aliases");
+
+        $this->make_snapshot();
     }
+
+    private function index_admins() {
+        if (false !== array_key_exists($this->admins, $this->files)) {
+            $reader = new \Woeplanet\Reader();
+            $reader->open($this->files[$this->admins]);
+            $total = $reader->size();
+
+            $this->log("Indexing $total admins");
+            $row = 0;
+
+            while(($data = $reader->get()) !== false) {
+                $row++;
+                $this->check_raw_admins($row, $data);
+
+                $doc = $this->get_woeid($data['WOE_ID']);
+                if (!empty($data['State'])) {
+                    $doc['woe:state'] = $data['State'];
+                }
+                if (!empty($data['County'])) {
+                    $doc['woe:county'] = $data['County'];
+                }
+                if (!empty($data['Local_Admin'])) {
+                    $doc['woe:localadmin'] = $data['Local_Admin'];
+                }
+                if (!empty($data['Country'])) {
+                    $doc['woe:country'] = $data['Country'];
+                }
+                if (!empty($data['Continent'])) {
+                    $doc['woe:continent'] = $data['Continent'];
+                }
+
+                $criteria = array('_id' => (int)$data['WOE_ID']);
+                $options = array('upsert' => true);
+                $this->collections[self::PLACES_COLLECTION]->update($criteria, $doc, $options);
+
+                $this->show_status($row, $total);
+            }
+
+            $this->log("\nFinished indexing $total admins");
+            $this->make_snapshot();
+        }
+
+        else {
+            $this->log("No admins found for $this->admins; skipping");
+        }
+	}
 
     private function index_placetypes() {
         $placetypes = $this->placetypes->get();
@@ -742,356 +965,406 @@ class GeoPlanetImport extends Woeplanet\Runner {
         $row = 0;
         $this->log("Indexing $total placetypes");
 
-		$params = array(
-			'body' => '',
-			'index' => self::INDEX,
-			'type' => self::PLACETYPES_TYPE,
-			'id' => ''
-		);
+		// $params = array(
+		// 	'body' => '',
+		// 	'index' => self::DATABASE,
+		// 	'type' => self::PLACETYPES_TYPE,
+		// 	'id' => ''
+		// );
 
 		foreach ($placetypes as $placetype) {
 			$row++;
-			$params['body'] = $placetype;
-			$params['id'] = $placetype['id'];
+            $doc = $placetype;
+            $doc['_id'] = (int)$placetype['id'];
+            unset($doc['id']);
 
-			$this->es->index($params);
+            $criteria = array('_id' => (int)$doc['_id']);
+            $options = array('upsert' => true);
+            $this->collections[self::PLACETYPES_COLLECTION]->update($criteria, $doc, $options);
+
 			$this->show_status($row, $total);
 		}
 
-        $snapshot = $this->history[0]['source'] . ' placetypes';
-        $this->create_snapshot($snapshot);
+        // $snapshot = $this->history[0]['source'] . ' placetypes';
+        // $this->create_snapshot($snapshot);
         $this->log("\nFinished indexing $total placetypes");
+
+        $this->make_snapshot();
     }
 
     private function index_test() {
-        $params = array(
-            'body' => array(
-                self::ADMINS_TYPE => array(
-                    '_timestamp' => array(
-                        'enabled' => true
-                    ),
-                    'properties' => array(
-                        'woe:id' => array(
-                            'type' => 'long'
-                        ),
-                        'woe:continent' => array(
-                            'type' => 'long'
-                        ),
-                        'woe:country' => array(
-                            'type' => 'long'
-                        ),
-                        'woe:county' => array(
-                            'type' => 'long'
-                        ),
-                        'woe:local-admin' => array(
-                            'type' => 'long'
-                        ),
-                        'woe:state' => array(
-                            'type' => 'long'
-                        ),
-                        'history' => array(
-                            'properties' => array(
-                                'source' => array(
-                                    'type' => 'string'
-                                ),
-                                'timestamp' => array(
-                                    'type' => 'long'
-                                )
-                            )
-                        )
-                    )
-                )
-            ),
-            'index' => self::INDEX,
-            'type' => self::ADMINS_TYPE
+        // $bbox = new \Woeplanet\BoundingBox(-1.51576, 51.414101, -1.51631, 51.414101);
+        // echo $bbox;
+        // if ($bbox->is_empty()) {
+        //     error_log('empty');
+        // }
+        // else {
+        //     error_log('not empty');
+        // }
+        // if ($bbox->is_valid()) {
+        //     error_log('valid');
+        // }
+        // else {
+        //     error_log('invalid');
+        // }
+        //
+        // $json = json_encode($bbox->to_geojson());
+        // error_log($json);
+        // $bounds = geoPHP::load($json, 'json');
+        // if ($bounds->isClosed()) {
+        //     error_log('is closed');
+        // }
+        // error_log('points: ' . $bounds->numPoints());
+        // exit;
+
+        $timeout = 480000;
+        $options = array(
+            'socketTimeoutMS' => -1,
+            'maxTimeMS' => $timeout,
+            'background' => true
         );
-        $this->es->indices()->putMapping($params);
-        exit;
+        $this->log("Defining geospatial indices: woe:centroid");
+        $this->collections[self::PLACES_COLLECTION]->createIndex(array('woe:centroid' => '2dsphere'), $options);
+        $this->log("Defining geospatial indices: woe:bounds");
+        $this->collections[self::PLACES_COLLECTION]->createIndex(array('woe:bounds' => '2dsphere'), $options);
 
-        $woeid = 44418;
-        $admins = array();
-        $admins = $this->collect_admins($woeid, $admins);
-        error_log("Final admins: " . var_export($admins, true));
-        exit;
+        // $this->make_snapshot();
 
-        $meta = $this->get_meta();
-        error_log(var_export($meta, true));
-        exit;
+        // $params = array(
+        //     'body' => array(
+        //         self::ADMINS_TYPE => array(
+        //             '_timestamp' => array(
+        //                 'enabled' => true
+        //             ),
+        //             'properties' => array(
+        //                 'woe:id' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'woe:continent' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'woe:country' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'woe:county' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'woe:local-admin' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'woe:state' => array(
+        //                     'type' => 'long'
+        //                 ),
+        //                 'history' => array(
+        //                     'properties' => array(
+        //                         'source' => array(
+        //                             'type' => 'string'
+        //                         ),
+        //                         'timestamp' => array(
+        //                             'type' => 'long'
+        //                         )
+        //                     )
+        //                 )
+        //             )
+        //         )
+        //     ),
+        //     'index' => self::DATABASE,
+        //     'type' => self::ADMINS_TYPE
+        // );
+        // $this->es->indices()->putMapping($params);
+        // exit;
 
-        $snapshot = $this->history[0]['source'] . ' places';
-        $this->create_snapshot($snapshot);
-        $this->log("\nFinished indexing $total places");
+        // $woeid = 44418;
+        // $admins = array();
+        // $admins = $this->collect_admins($woeid, $admins);
+        // error_log("Final admins: " . var_export($admins, true));
+        // exit;
 
-        exit;
+        // $meta = $this->get_meta();
+        // error_log(var_export($meta, true));
+        // exit;
 
-        $this->snapshot_repo_name;
-        $this->snapshot_repo_dir;
+        // $snapshot = $this->history[0]['source'] . ' places';
+        // $this->create_snapshot($snapshot);
+        // $this->log("\nFinished indexing $total places");
+        //
+        // exit;
 
-        $path = getcwd();
-        $repodir = $path . DIRECTORY_SEPARATOR . self::INDEX . '-snapshots';
-
-        $repo = self::INDEX . '-progress';
-
-        $params = array(
-            'repository' => $repo . 'nothing'
-        );
-        $doc = $this->es->snapshot()->getRepository($params);
-        $this->log(var_export($doc));
-
-        exit;
-
-
-        $params = array(
-            'repository' => $repo,
-            'snapshot' => 'test-me',
-            'wait_for_completion' => true
-        );
-        $json = json_encode($params, JSON_PRETTY_PRINT);
-        $this->log($json);
-        $this->es->snapshot()->create($params);
-        exit;
-
-
-        $params = array(
-            'repository' => $repo,
-            'body' => array(
-                'type' => 'fs',
-                'settings' => array(
-                    'compress' => true,
-                    'location' => $repodir
-                )
-            )
-        );
-        $json = json_encode($params, JSON_PRETTY_PRINT);
-        $this->log($json);
-        $this->es->snapshot()->createRepository($params);
-        exit;
+        // $this->snapshot_repo_name;
+        // $this->snapshot_repo_dir;
+        //
+        // $path = getcwd();
+        // $repodir = $path . DIRECTORY_SEPARATOR . self::DATABASE . '-snapshots';
+        //
+        // $repo = self::DATABASE . '-progress';
+        //
+        // $params = array(
+        //     'repository' => $repo . 'nothing'
+        // );
+        // $doc = $this->es->snapshot()->getRepository($params);
+        // $this->log(var_export($doc));
+        //
+        // exit;
 
 
-        $params = array(
-            'body' => array(
-                'woe:id' => 44418,
-                'iso' => 'GB',
-                'name' => 'London',
-                'lang' => 'ENG',
-                'woe:centroid' => array(-0.12714, 51.506321),
-                'woe:bbox' => array(
-                    array(-0.563, 51.261318),
-                    array(0.28036, 51.686031)
-                ),
-                'woe:bounds' => array(
-                    'type' => 'Polygon',
-                    'coordinates' => array(
-                        array(
-                            array(-0.563, 51.261),
-                            array(-0.563, 51.686),
-                            array(0.28, 51.686),
-                            array(0.28, 51.261),
-                            array(-0.563, 51.261)
-                        )
-                    )
-                ),
-                'woe:placetype' => 7,
-                'woe:placetypename' => 'Town',
-                'woe:parent' => 23416974,
-                'woe:supercedes' => 1234,
-                'woe:superceded' => 1234,
-                "woe:adjacent" => array(
-                    "woe:town=18074",
-                    "woe:town=19919",
-                    "woe:town=19551",
-                    "woe:town=14482",
-                    "woe:town=15786",
-                    "woe:town=11448",
-                    "woe:town=35986",
-                    "woe:town=31287",
-                    "woe:town=30600",
-                    "woe:town=24596",
-                    "woe:town=39684",
-                    "woe:town=26662",
-                    "woe:town=23839",
-                    "woe:town=37214",
-                    "woe:town=39437",
-                    "woe:town=15824",
-                    "woe:town=25681",
-                    "woe:town=21746",
-                    "woe:town=12052",
-                    "woe:town=28278",
-                    "woe:town=18076",
-                    "woe:town=35337",
-                    "woe:town=17535",
-                    "woe:town=17333",
-                    "woe:town=17601",
-                    "woe:town=22218",
-                    "woe:town=21298",
-                    "woe:town=11566",
-                    "woe:town=39690",
-                    "woe:town=29718",
-                    "woe:town=37013",
-                    "woe:town=14729",
-                    "woe:town=39185",
-                    "woe:town=20094177",
-                    "woe:town=56064358",
-                    "woe:town=26712",
-                    "woe:town=23517",
-                    "woe:town=29719",
-                    "woe:town=28976",
-                    "woe:town=15566",
-                    "woe:town=40561",
-                    "woe:town=25556",
-                    "woe:town=22552",
-                    "woe:town=16174",
-                    "woe:town=21490",
-                    "woe:town=28835375",
-                    "woe:town=13267",
-                    "woe:town=39912",
-                    "woe:town=15890",
-                    "woe:town=14384",
-                    "woe:suburb=38838",
-                    "woe:town=14728",
-                    "woe:town=39321",
-                    "woe:town=35295",
-                    "woe:town=27508",
-                    "woe:town=13781",
-                    "woe:town=39070",
-                    "woe:town=35009",
-                    "woe:suburb=17002",
-                    "woe:town=34397",
-                    "woe:town=36880",
-                    "woe:town=39072",
-                    "woe:town=37149",
-                    "woe:town=36749",
-                    "woe:suburb=31092",
-                    "woe:town=11791",
-                    "woe:town=17953",
-                    "woe:town=21536",
-                    "woe:town=27397",
-                    "woe:town=11209",
-                    "woe:town=19055",
-                    "woe:town=33295",
-                    "woe:town=36612",
-                    "woe:town=19643",
-                    "woe:town=39188",
-                    "woe:suburb=33508",
-                    "woe:town=24595",
-                    "woe:town=32682",
-                    "woe:town=19649",
-                    "woe:town=25985",
-                    "woe:town=34560",
-                    "woe:town=39747",
-                    "woe:suburb=38594",
-                    "woe:town=11157",
-                    "woe:town=15405",
-                    "woe:town=19688",
-                    "woe:town=32485",
-                    "woe:town=40385"
-                ),
-                "woe:alias_DUT_Q" => array(
-                    "Londen"
-                ),
-                'woe:alias_FRE_Q' => array(
-                    "Londres"
-                ),
-                'woe:alias_ITA_Q' => array(
-                    "Londra"
-                ),
-                'woe:alias_POR_Q' => array(
-                    "Londres"
-                ),
-                'woe:alias_SPA_Q' => array(
-                    "Londres"
-                ),
-                'woe:alias_JPN_Q' => array(
-                    "ロンドン"
-                ),
-                'woe:alias_FIN_Q' => array(
-                    "Lontoo"
-                ),
-                'woe:alias_KOR_Q' => array(
-                    "런던"
-                ),
-                'woe:alias_CZE_Q' => array(
-                    "Londýn"
-                ),
-                'woe:alias_POL_Q' => array(
-                    "Londyn"
-                ),
-                'woe:alias_RUM_Q' => array(
-                    "Londra"
-                ),
-                'woe:alias_CHI_Q' => array(
-                    "倫敦"
-                ),
-                "woe:alias_FIN_V" => array(
-                    "Lontooseen",
-                    "Lontoosta",
-                    "Lontoon kautta"
-                ),
-                'woe:alias_ARA_V' => array(
-                    "لندن"
-                ),
-                'woe:alias_UNK_V' => array(
-                    "Лондон",
-                    "Λονδινο",
-                    "लंदन",
-                    "लदन",
-                    "Lundúnir",
-                    "Lundunir",
-                    "Londonas",
-                    "ลอนดอน"
-                ),
-                'woe:alias_KOR_V' => array(
-                    "런던"
-                ),
-                'woe:alias_CHI_V' => array(
-                    "伦敦"
-                ),
-                'woe:alias_ENG_V' => array(
-                    "LON"
-                ),
-                'history' => array(
-                    array(
-                        'source' => 'GeoPlanet 7.3.1',
-                        'timestamp' => 1403102873
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.3.2',
-                        'timestamp' => 1403240483
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.4.0',
-                        'timestamp' => 1403417454
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.4.1',
-                        'timestamp' => 1403446684
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.5.1',
-                        'timestamp' => 1403531938
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.5.2',
-                        'timestamp' => 1403588795
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.6.0',
-                        'timestamp' => 1403673376
-                    ),
-                    array(
-                        'source' => 'GeoPlanet 7.8.1',
-                        'timestamp' => 1403705517
-                    )
-                )
-            ),
-            'index' => self::INDEX,
-            'type' => self::PLACES_TYPE,
-            'id' => 44418
-        );
+        // $params = array(
+        //     'repository' => $repo,
+        //     'snapshot' => 'test-me',
+        //     'wait_for_completion' => true
+        // );
+        // $json = json_encode($params, JSON_PRETTY_PRINT);
+        // $this->log($json);
+        // $this->es->snapshot()->create($params);
+        // exit;
 
-        $json = json_encode($params, JSON_PRETTY_PRINT);
-        $this->log($json);
-        $this->es->index($params);
+
+        // $params = array(
+        //     'repository' => $repo,
+        //     'body' => array(
+        //         'type' => 'fs',
+        //         'settings' => array(
+        //             'compress' => true,
+        //             'location' => $repodir
+        //         )
+        //     )
+        // );
+        // $json = json_encode($params, JSON_PRETTY_PRINT);
+        // $this->log($json);
+        // $this->es->snapshot()->createRepository($params);
+        // exit;
+
+
+        // $params = array(
+        //     '_id' => 44418,
+        //     'woe:id' => 44418,
+        //     'iso' => 'GB',
+        //     'name' => 'London',
+        //     'lang' => 'ENG',
+        //     'woe:centroid' => array(-0.12714, 51.506321),
+        //     'woe:bbox' => array(
+        //         array(-0.563, 51.261318),
+        //         array(0.28036, 51.686031)
+        //     ),
+        //     'woe:bounds' => array(
+        //         'type' => 'Polygon',
+        //         'coordinates' => array(
+        //             array(
+        //                 array(-0.563, 51.261),
+        //                 array(-0.563, 51.686),
+        //                 array(0.28, 51.686),
+        //                 array(0.28, 51.261),
+        //                 array(-0.563, 51.261)
+        //             )
+        //         )
+        //     ),
+        //     'woe:placetype' => 7,
+        //     'woe:placetypename' => 'Town',
+        //     'woe:parent' => 23416974,
+        //     'woe:supercedes' => 1234,
+        //     'woe:superceded' => 1234,
+        //     "woe:adjacent" => array(
+        //         "woe:town=18074",
+        //         "woe:town=19919",
+        //         "woe:town=19551",
+        //         "woe:town=14482",
+        //         "woe:town=15786",
+        //         "woe:town=11448",
+        //         "woe:town=35986",
+        //         "woe:town=31287",
+        //         "woe:town=30600",
+        //         "woe:town=24596",
+        //         "woe:town=39684",
+        //         "woe:town=26662",
+        //         "woe:town=23839",
+        //         "woe:town=37214",
+        //         "woe:town=39437",
+        //         "woe:town=15824",
+        //         "woe:town=25681",
+        //         "woe:town=21746",
+        //         "woe:town=12052",
+        //         "woe:town=28278",
+        //         "woe:town=18076",
+        //         "woe:town=35337",
+        //         "woe:town=17535",
+        //         "woe:town=17333",
+        //         "woe:town=17601",
+        //         "woe:town=22218",
+        //         "woe:town=21298",
+        //         "woe:town=11566",
+        //         "woe:town=39690",
+        //         "woe:town=29718",
+        //         "woe:town=37013",
+        //         "woe:town=14729",
+        //         "woe:town=39185",
+        //         "woe:town=20094177",
+        //         "woe:town=56064358",
+        //         "woe:town=26712",
+        //         "woe:town=23517",
+        //         "woe:town=29719",
+        //         "woe:town=28976",
+        //         "woe:town=15566",
+        //         "woe:town=40561",
+        //         "woe:town=25556",
+        //         "woe:town=22552",
+        //         "woe:town=16174",
+        //         "woe:town=21490",
+        //         "woe:town=28835375",
+        //         "woe:town=13267",
+        //         "woe:town=39912",
+        //         "woe:town=15890",
+        //         "woe:town=14384",
+        //         "woe:suburb=38838",
+        //         "woe:town=14728",
+        //         "woe:town=39321",
+        //         "woe:town=35295",
+        //         "woe:town=27508",
+        //         "woe:town=13781",
+        //         "woe:town=39070",
+        //         "woe:town=35009",
+        //         "woe:suburb=17002",
+        //         "woe:town=34397",
+        //         "woe:town=36880",
+        //         "woe:town=39072",
+        //         "woe:town=37149",
+        //         "woe:town=36749",
+        //         "woe:suburb=31092",
+        //         "woe:town=11791",
+        //         "woe:town=17953",
+        //         "woe:town=21536",
+        //         "woe:town=27397",
+        //         "woe:town=11209",
+        //         "woe:town=19055",
+        //         "woe:town=33295",
+        //         "woe:town=36612",
+        //         "woe:town=19643",
+        //         "woe:town=39188",
+        //         "woe:suburb=33508",
+        //         "woe:town=24595",
+        //         "woe:town=32682",
+        //         "woe:town=19649",
+        //         "woe:town=25985",
+        //         "woe:town=34560",
+        //         "woe:town=39747",
+        //         "woe:suburb=38594",
+        //         "woe:town=11157",
+        //         "woe:town=15405",
+        //         "woe:town=19688",
+        //         "woe:town=32485",
+        //         "woe:town=40385"
+        //     ),
+        //     "woe:alias_DUT_Q" => array(
+        //         "Londen"
+        //     ),
+        //     'woe:alias_FRE_Q' => array(
+        //         "Londres"
+        //     ),
+        //     'woe:alias_ITA_Q' => array(
+        //         "Londra"
+        //     ),
+        //     'woe:alias_POR_Q' => array(
+        //         "Londres"
+        //     ),
+        //     'woe:alias_SPA_Q' => array(
+        //         "Londres"
+        //     ),
+        //     'woe:alias_JPN_Q' => array(
+        //         "ロンドン"
+        //     ),
+        //     'woe:alias_FIN_Q' => array(
+        //         "Lontoo"
+        //     ),
+        //     'woe:alias_KOR_Q' => array(
+        //         "런던"
+        //     ),
+        //     'woe:alias_CZE_Q' => array(
+        //         "Londýn"
+        //     ),
+        //     'woe:alias_POL_Q' => array(
+        //         "Londyn"
+        //     ),
+        //     'woe:alias_RUM_Q' => array(
+        //         "Londra"
+        //     ),
+        //     'woe:alias_CHI_Q' => array(
+        //         "倫敦"
+        //     ),
+        //     "woe:alias_FIN_V" => array(
+        //         "Lontooseen",
+        //         "Lontoosta",
+        //         "Lontoon kautta"
+        //     ),
+        //     'woe:alias_ARA_V' => array(
+        //         "لندن"
+        //     ),
+        //     'woe:alias_UNK_V' => array(
+        //         "Лондон",
+        //         "Λονδινο",
+        //         "लंदन",
+        //         "लदन",
+        //         "Lundúnir",
+        //         "Lundunir",
+        //         "Londonas",
+        //         "ลอนดอน"
+        //     ),
+        //     'woe:alias_KOR_V' => array(
+        //         "런던"
+        //     ),
+        //     'woe:alias_CHI_V' => array(
+        //         "伦敦"
+        //     ),
+        //     'woe:alias_ENG_V' => array(
+        //         "LON"
+        //     ),
+        //     'history' => array(
+        //         array(
+        //             'source' => 'GeoPlanet 7.3.1',
+        //             'timestamp' => 1403102873
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.3.2',
+        //             'timestamp' => 1403240483
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.4.0',
+        //             'timestamp' => 1403417454
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.4.1',
+        //             'timestamp' => 1403446684
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.5.1',
+        //             'timestamp' => 1403531938
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.5.2',
+        //             'timestamp' => 1403588795
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.6.0',
+        //             'timestamp' => 1403673376
+        //         ),
+        //         array(
+        //             'source' => 'GeoPlanet 7.8.1',
+        //             'timestamp' => 1403705517
+        //         )
+        //     )
+            // 'index' => self::DATABASE,
+            // 'type' => self::PLACES_TYPE,
+            // 'id' => 44418
+        // );
+
+        // $json = json_encode($params, JSON_PRETTY_PRINT);
+        // $this->log($json);
+
+        // error_log(var_export($this->collections, true));
+        // $this->collections[self::PLACES_COLLECTION]->insert($params);
+        // $res = $this->get_woeid(44418);
+        // error_log(var_export($res, true));
+        //
+        // $res = $this->get_woeid(44417);
+        // error_log(var_export($res, true));
+
     }
 
     private function setup_snapshots() {
@@ -1191,30 +1464,42 @@ class GeoPlanetImport extends Woeplanet\Runner {
         $db->exec('PRAGMA journal_mode=DELETE');
     }
 
+    private function sanitize_coord($coord) {
+		if ($coord == '\N' || $coord == '\n' || $coord == NULL) {
+			$coord = 0;
+		}
+
+		return $coord;
+	}
+
     private function make_placeholder_woeid($woeid, $placeholder=NULL) {
         $placetype = $this->placetypes->get_by_id(0);
-        $params = array(
-            'body' => array(
-                'woe:id' => (int)$woeid,
-                'iso' => '',
-                'name' => '',
-                'lang' => 'ENG',
-                'woe:placetype' => (int)$placetype['placetype']['id'],
-                'woe:placetypename' => $placetype['placetype']['name'],
-                'woe:parent' => 0,
-                'history' => $this->history
-            ),
-            'index' => self::INDEX,
-            'type' => self::PLACES_TYPE,
-            'id' => (int)$woeid,
-            'refresh' => true
+        $doc = array(
+            // 'body' => array(
+            // '_id' => (int)$woeid,
+            // 'woe:id' => (int)$woeid,
+            'iso' => '',
+            'name' => '',
+            'lang' => 'ENG',
+            'woe:placetype' => (int)$placetype['placetype']['id'],
+            'woe:placetypename' => $placetype['placetype']['name'],
+            'woe:parent' => 0,
+            'history' => $this->history
+            // ),
+            // 'index' => self::DATABASE,
+            // 'type' => self::PLACES_TYPE,
+            // 'id' => (int)$woeid,
+            // 'refresh' => true
         );
 
         if (NULL !== $placeholder) {
-            $params = array_merge($params['body'], $placeholder);
+            $doc = array_merge($doc, $placeholder);
         }
 
-        return $params;
+        $doc['_id'] = (int)$woeid;
+        $doc['woe:id'] = (int)$woeid;
+
+        return $doc;
     }
 
     private function collect_admins($woeid, &$admins) {
@@ -1257,7 +1542,7 @@ class GeoPlanetImport extends Woeplanet\Runner {
         // error_log("Admins so far:" . var_export($admins, true));
         if ((isset($admins['woe:state']) && !empty($admins['woe:state'])) &&
                 (isset($admins['woe:county']) && !empty($admins['woe:county'])) &&
-                (isset($admins['woe:local-admin']) && !empty($admins['lwoe:ocal-admin'])) &&
+                (isset($admins['woe:local-admin']) && !empty($admins['woe:local-admin'])) &&
                 (isset($admins['woe:country']) && !empty($admins['woe:country'])) &&
                 (isset($admins['woe:continent']) && !empty($admins['woe:continent']))) {
             // error_log("Admins completed");
@@ -1272,22 +1557,36 @@ class GeoPlanetImport extends Woeplanet\Runner {
         // error_log("Recursing into parent " . $doc['_source']['woe:parent']);
         return $this->collect_admins($doc['_source']['woe:parent'], $admins);
     }
+
+    private function make_snapshot() {
+        $path = $this->snapshot . '/' . $this->version . '/' . $this->stage;
+        if (!is_dir($path)) {
+            $mode = 0777;
+            $recursive = true;
+            mkdir($path, $mode, $recursive);
+        }
+        $cmd = '/usr/local/bin/mongodump --quiet --out ' . $path . ' --db ' . self::DATABASE;
+        $this->log('Creating snapshot: ' . $cmd);
+        exec($cmd);
+    }
 }
 
-$shortopts = "ve:p:s:";
+$shortopts = "vcm:p:s:S:";
 $longopts = array(
     "verbose",
     "clear",
-    "elasticsearch:",
+    "mongodb:",
     "path:",
-    "stage:"
+    "stage:",
+    "snapshot"
 );
 
 $verbose = false;
 $purge = false;
 $path = NULL;
-$instance = 'http://localhost:9200';
+$instance = 'mongodb://localhost:27017';
 $stage = NULL;
+$snapshot = '~/geoplanet-snapshots';
 
 $options = getopt($shortopts, $longopts);
 
@@ -1297,11 +1596,11 @@ if (isset($options['v']) || isset($options['verbose'])) {
 if (isset($options['c']) || isset($options['clear'])) {
     $purge = true;
 }
-if (isset($options['e'])) {
-    $instance = $options['e'];
+if (isset($options['m'])) {
+    $instance = $options['m'];
 }
-else if (isset($options['elasticsearch'])) {
-    $instance = $options['elasticsearch'];
+else if (isset($options['mongodb'])) {
+    $instance = $options['mongodb'];
 }
 
 if (isset($options['p'])) {
@@ -1322,7 +1621,14 @@ else if (isset($options['stage'])) {
     $stage = $options['stage'];
 }
 
-$import = new GeoPlanetImport($instance, $path, $verbose, $purge, $stage);
+if (isset($options['S'])) {
+    $snapshot = $options['S'];
+}
+else if (isset($options['snapshot'])) {
+    $snapshot = $options['snapshot'];
+}
+
+$import = new GeoPlanetImport($instance, $path, $verbose, $purge, $stage, $snapshot);
 $import->run();
 
 ?>

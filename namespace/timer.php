@@ -6,6 +6,7 @@ class Timer {
     static $last;
 
     public function __construct($stages) {
+        date_default_timezone_set('UTC');
         self::$last = array();
         foreach ($stages as $stage) {
             self::$last[$stage] = null;

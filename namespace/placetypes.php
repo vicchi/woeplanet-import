@@ -251,6 +251,7 @@ class PlaceTypes {
     }
 
     public function get_by_id($id) {
+        // error_log('get_by_id: ' . $id);
         if (array_key_exists($id, $this->placetypes)) {
             return array(
                 'found' => true,

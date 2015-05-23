@@ -3,6 +3,7 @@
 namespace Woeplanet;
 
 class Reader {
+	const ENCODING = 'UTF-8';
 	private $handle = NULL;
 	private $line_length = 1000;
 	private $separator = "\t";
@@ -35,10 +36,13 @@ class Reader {
 	public function get() {
 		if (($data = fgetcsv($this->handle, $this->line_length, $this->separator)) !== false) {
 			$row = array();
-			foreach ($this->header as $i => $column) {
-				$row[$column] = $data[$i];
+			foreach ($this->header as $i => $key) {
+				$value = $data[$i];
+				if (!mb_check_encoding($value, 'UTF-8')) {
+					$value = utf8_encode($value);
+				}
+				$row[$key] = $value;
 			}
-
 			return $row;
 		}
 
