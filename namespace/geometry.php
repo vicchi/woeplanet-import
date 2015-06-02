@@ -42,6 +42,10 @@ class Centroid {
         );
     }
 
+    public function to_json() {
+        return array($this->lon, $this->lat);
+    }
+
     public function __toString() {
         return 'Centroid(' . $this->lon . ',' . $this->lat . ')';
     }
@@ -102,6 +106,26 @@ class BoundingBox {
 
 		return array(
 			'type' => 'Polygon',
+			'coordinates' => array(
+				array(
+					array($this->swlon, $this->swlat),
+					array($west, $north),
+					array($this->nelon, $this->nelat),
+					array($east, $south),
+					array($this->swlon, $this->swlat)
+				)
+			)
+		);
+	}
+
+    public function to_json() {
+		$north = $this->nelat;
+		$east = $this->nelon;
+		$south = $this->swlat;
+		$west = $this->swlon;
+
+		return array(
+			'type' => 'polygon',
 			'coordinates' => array(
 				array(
 					array($this->swlon, $this->swlat),
