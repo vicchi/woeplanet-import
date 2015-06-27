@@ -1,9 +1,9 @@
 #!/usr/bin/env php
 <?php
 
-require 'vendor/autoload.php';
+require '../vendor/autoload.php';
 // require 'geoplanet-data-reader.php';
-require 'oauth.php';
+require '../etc/oauth.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Subscriber\Oauth\Oauth1;

@@ -2,7 +2,7 @@
 
 namespace Woeplanet;
 
-require_once 'vendor/autoload.php';
+require_once '../vendor/autoload.php';
 
 abstract class Runner {
 	const DATABASE = "woeplanet";

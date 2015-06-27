@@ -1,11 +1,11 @@
 #!/usr/bin/env php
 <?php
 
-require_once 'task-runner.php';
-require_once 'timer.php';
-require_once 'cache-utils.php';
-require_once 'placetypes.php';
-require_once 'geometry.php';
+require_once '../lib/task-runner.php';
+require_once '../lib/timer.php';
+require_once '../lib/cache-utils.php';
+require_once '../lib/placetypes.php';
+require_once '../lib/geometry.php';
 
 Class CacheExport extends Woeplanet\TaskRunner {
     const RUN_TASK = 'run';

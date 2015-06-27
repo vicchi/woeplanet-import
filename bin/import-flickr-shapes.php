@@ -1,9 +1,9 @@
 #!/usr/bin/env php
 <?php
 
-require_once 'runner.php';
-require_once 'timer.php';
-require_once 'vendor/autoload.php';
+require_once '../lib/runner.php';
+require_once '../lib/timer.php';
+require_once '../vendor/autoload.php';
 
 class FlickrShapesImport extends Woeplanet\Runner {
     const RUN_STAGE = 'run';
