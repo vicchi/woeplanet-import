@@ -13,13 +13,14 @@ class Reader {
 	public function __construct() {
 	}
 
-	public function open($path) {
+	public function open($path, $separator="\t") {
+		$this->separator = $separator;
 		$this->path = $path;
 		if ($this->handle !== NULL) {
 			$this->close();
 		}
 		if (($this->handle = fopen($this->path, "r")) === false) {
-			throw new Exception('Failed to open ' . $path);
+			throw new \Exception('Failed to open ' . $path);
 		}
 
 		$this->header = fgetcsv($this->handle, $this->line_length, $this->separator);

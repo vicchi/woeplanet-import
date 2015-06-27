@@ -2,7 +2,7 @@
 <?php
 
 require 'vendor/autoload.php';
-// require 'geoplanet-data-reader.php';
+require 'geoplanet-data-reader.php';
 require 'oauth.php';
 
 use GuzzleHttp\Client;
@@ -138,8 +138,24 @@ class GeoPlanetUpdater {
 	private function cache_places() {
 		$this->elapsed('cache');
 		$db = new PDO('sqlite:geoplanet_updates.sqlite3');
+		$tsv = new GeoPlanetDataReader();
+
+		$tsv->open($this->files[$this->places]);
+		$total = $tsv->size();
+
+		$this->log("Caching $total WOEIDs from YQL");
+
+		$setup = "CREATE TABLE IF NOT EXISTS geoplanet_update(
+			woeid INTEGER PRIMARY KEY,
+			parent INTEGER,
+			timezone INTEGER,
+			tz STRING
+		);";
+		$db->exec($setup);
+
+		$insert = "INSERT INTO geoplanet_update(woeid,parent,timezone,tz) VALUES(:woeid,:parent,:timezone,:tz)";
+		$statement = $db->prepare($insert);
 		$row = 0;
-		$fp = fopen('update.log', 'r');
 
 		$client = new GuzzleHttp\Client(['
 			base_url' => 'https://query.yahooapis.com/v1/public/yql/',
@@ -151,8 +167,8 @@ class GeoPlanetUpdater {
 		]);
 		$client->getEmitter()->attach($oauth);
 
-		$q = 'https://query.yahooapis.com/v1/yql/?q=';
-		$select = 'select woeid,name,timezone from geo.places.parent where child_woeid = %d';
+		$q = 'https://query.yahooapis.com/v1/public/yql/?q=';
+		$select = 'select woeid,timezone from geo.places.parent where child_woeid = %d';
 		$format = '&format=json';
 
 		$query = 'https://query.yahooapis.com/v1/public/yql' .
@@ -160,64 +176,46 @@ class GeoPlanetUpdater {
 			urlencode($select) .
 			$format;
 
-		$total = 0;
-		while (($rec = fgets($fp)) !== false) {
-			$total++;
-		}
-		rewind($fp);
+		$check = "SELECT * FROM geoplanet_update WHERE woeid = :woeid";
+		$sql = $db->prepare($check);
 
-		while (($rec = fgets($fp)) !== false) {
+		while (($data = $tsv->get()) !== false) {
 			$row++;
-		    $woeid = intval($rec);
 
-			$this->delay();
+			$rpc = true;
+			$sql->bindParam(':woeid', $data['WOE_ID']);
+			$sql->execute();
+			$ret = $sql->fetch(PDO::FETCH_ASSOC);
+			if ($ret) {
+				$rpc = false;
+			}
 
-			$yql = $q .
-				urlencode(sprintf($select, $woeid)) .
-				$format;
-			// error_log($yql);
-			$valid = false;
-			while (!$valid) {
-				try {
-					$res = $client->get($yql);
-					if ($res->getStatusCode() == '200') {
-						$valid = true;
+			if ($rpc) {
+				$this->delay();
+
+				$yql = $q .
+					urlencode(sprintf($select, $data[self::PLACES_WOEID])) .
+					$format;
+				$res = $client->get($yql);
+
+				if ($res->getStatusCode() == '200') {
+					$statement->bindParam(':woeid', $data['WOE_ID']);
+					$json = $res->json();
+
+					$statement->bindParam(':parent', $json['query']['results']['place']['woeid']);
+					$timezone = 0;
+					$tz = '';
+					if (isset($json['query']['results']['place']['timezone'])) {
+						$timezone = $json['query']['results']['place']['timezone']['woeid'];
+						$tz = $json['query']['results']['place']['timezone']['content'];
 					}
-				}
-				catch (Exception $e) {
-					error_log($woeid);
-					error_log($yql);
-					error_log($e->getMessage());
-					$this->delay();
+					$statement->bindParam(':timezone', $timezone);
+					$statement->bindParam(':tz', $tz);
+					$statement->execute();
 				}
 			}
-			if ($res->getStatusCode() == '200') {
-				$json = $res->json();
-				// error_log(var_export($json, true));
 
-				$parent = 0;
-				$timezone = 0;
-				$tz = '';
-
-				$sql = '';
-				if (isset($json['query']['results']['place']['woeid'])) {
-					$parent = intval($json['query']['results']['place']['woeid']);
-					$sql .= 'UPDATE geoplanet_update SET parent=' . $parent . ' WHERE woeid=' . $woeid . ';';
-				}
-
-				if (isset($json['query']['results']['place']['timezone'])) {
-					$timezone = intval($json['query']['results']['place']['timezone']['woeid']);
-					$tz = $json['query']['results']['place']['timezone']['content'];
-
-					$sql .= 'UPDATE geoplanet_update SET timezone=' . $timezone . ',tz=' . $tz . ' WHERE woeid=' . $woeid . ';';
-				}
-
-				// error_log($sql);
-				if (!empty($sql)) {
-					$db->exec($sql);
-				}
-				$this->show_status($row, $total);
-			}
+			$this->show_status($data['WOE_ID'], $row, $total);
 		}
 
 		$elapsed = $this->seconds_to_time($this->elapsed('cache'));
@@ -273,7 +271,7 @@ class GeoPlanetUpdater {
 	}
 
 	// Thanks to Brian Moon for this - http://brian.moonspot.net/php-progress-bar
-	private function show_status($done, $total, $size=30) {
+	private function show_status($woeid, $done, $total, $size=30) {
 		if ($done === 0) {
 			$done = 1;
 		}
@@ -294,7 +292,7 @@ class GeoPlanetUpdater {
 			$status_bar .= "=";
 		}
 		$disp = number_format($perc * 100, 0);
-		$status_bar .= "] $disp%  $done/$total";
+		$status_bar .= "] $disp%  $done/$total woeid:$woeid";
 		if ($done === 0){$done = 1;}//avoid div zero warning
 		$rate = ($now - $start_time) / $done;
 		$left = $total - $done;

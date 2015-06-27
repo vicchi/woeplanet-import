@@ -49,7 +49,7 @@ abstract class Runner {
 			$doc = json_decode($doc, $assoc);
 		}
 
-		if ($doc['found']) {
+		if (isset($doc['found']) && $doc['found']) {
 			return $doc['_source'];
 		}
 		return NULL;

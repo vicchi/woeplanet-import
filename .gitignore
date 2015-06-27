@@ -9,3 +9,9 @@
 /namespace/vendor
 
 /namespace/woeplanet-snapshots
+
+.DS_Store
+
+/archive/oauth.php
+
+/archive/vendor
