@@ -5,22 +5,22 @@ namespace Woeplanet;
 class Timer {
     static $last;
 
-    public function __construct($stages) {
+    public function __construct($tasks) {
         date_default_timezone_set('UTC');
         self::$last = array();
-        foreach ($stages as $stage) {
-            self::$last[$stage] = null;
+        foreach ($tasks as $task) {
+            self::$last[$task] = null;
         }
     }
 
-    public function elapsed($stage) {
+    public function elapsed($task) {
         $now = time();
         $elapsed = $now;
-        if (self::$last[$stage] != null) {
-            $elapsed = ($now - self::$last[$stage]);
+        if (self::$last[$task] != null) {
+            $elapsed = ($now - self::$last[$task]);
         }
 
-        self::$last[$stage] = $now;
+        self::$last[$task] = $now;
         return $elapsed;
     }
 

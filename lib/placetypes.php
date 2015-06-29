@@ -227,9 +227,11 @@ class PlaceTypes {
 
     public function __construct() {
         $this->types_by_shortname = array();
+        $this->types_by_tag = array();
 
         foreach ($this->placetypes as $id => $pt){
             $this->types_by_shortname[$pt['shortname']] = $pt;
+            $this->types_by_tag[$pt['tag']] = $pt;
         }
     }
 
@@ -265,6 +267,19 @@ class PlaceTypes {
                 'placetype' => array()
             );
         }
+    }
+
+    public function get_by_tag($tag) {
+        if (array_key_exists($tag, $this->types_by_tag)) {
+            return array(
+                'found' => true,
+                'placetype' => $this->types_by_tag[$tag]
+            );
+        }
+        return array(
+            'found' => false,
+            'placetype' => array()
+        );
     }
 }
 
