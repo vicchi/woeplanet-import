@@ -1,6 +1,6 @@
 {
-    "name": "vicchi/woeplanet",
-    "description": "Reimplementation of Yahoo! GeoPlanet",
+    "name": "vicchi/woeplanet-import",
+    "description": "Load, cache and re-link Yahoo! GeoPlanet as part of Woeplanet setup",
     "type": "project",
     "license": "MIT",
     "authors": [
